@@ -39,16 +39,94 @@ class TmdbMovie {
   }
 
   String get year => releaseDate.isNotEmpty ? releaseDate.substring(0, 4) : '----';
-
   String get posterUrl => posterPath != null
       ? 'https://image.tmdb.org/t/p/w500$posterPath'
       : '';
-
   String get backdropUrl => backdropPath != null
       ? 'https://image.tmdb.org/t/p/w780$backdropPath'
       : '';
-
   double get ratingRounded => double.parse(rating.toStringAsFixed(1));
+}
+
+// ─────────────────────────────────────────────
+//  TMDB DETAIL MODEL
+// ─────────────────────────────────────────────
+class TmdbMovieDetail {
+  final int id;
+  final String title;
+  final String? posterPath;
+  final String? backdropPath;
+  final String releaseDate;
+  final double rating;
+  final String overview;
+  final int? runtime;
+  final List<String> genres;
+  final List<TmdbCastMember> cast;
+  final List<TmdbImage> backdrops;
+  final String? trailerKey;
+
+  TmdbMovieDetail({
+    required this.id,
+    required this.title,
+    this.posterPath,
+    this.backdropPath,
+    required this.releaseDate,
+    required this.rating,
+    required this.overview,
+    this.runtime,
+    required this.genres,
+    required this.cast,
+    required this.backdrops,
+    this.trailerKey,
+  });
+
+  String get year => releaseDate.isNotEmpty ? releaseDate.substring(0, 4) : '----';
+  String get posterUrl => posterPath != null
+      ? 'https://image.tmdb.org/t/p/w500$posterPath'
+      : '';
+  String get backdropUrl => backdropPath != null
+      ? 'https://image.tmdb.org/t/p/w780$backdropPath'
+      : '';
+  double get ratingRounded => double.parse(rating.toStringAsFixed(1));
+  String get durationStr {
+    if (runtime == null || runtime == 0) return '—';
+    final h = runtime! ~/ 60;
+    final m = runtime! % 60;
+    return h > 0 ? '${h}h ${m}m' : '${m}m';
+  }
+  String get genreStr => genres.take(2).join(' • ');
+}
+
+class TmdbCastMember {
+  final String name;
+  final String character;
+  final String? profilePath;
+
+  TmdbCastMember({
+    required this.name,
+    required this.character,
+    this.profilePath,
+  });
+
+  String get profileUrl => profilePath != null
+      ? 'https://image.tmdb.org/t/p/w185$profilePath'
+      : '';
+
+  factory TmdbCastMember.fromJson(Map<String, dynamic> json) {
+    return TmdbCastMember(
+      name: json['name'] ?? '',
+      character: json['character'] ?? '',
+      profilePath: json['profile_path'],
+    );
+  }
+}
+
+class TmdbImage {
+  final String filePath;
+  TmdbImage({required this.filePath});
+  String get url => 'https://image.tmdb.org/t/p/w500$filePath';
+  factory TmdbImage.fromJson(Map<String, dynamic> json) =>
+      TmdbImage(filePath: json['file_path'] ?? '');
 }
 
 // ─────────────────────────────────────────────
@@ -73,6 +151,58 @@ class TMDBService {
     } else {
       throw Exception('TMDB error: ${response.statusCode}');
     }
+  }
+
+  /// Fetch full movie detail: runtime, genres, cast, backdrops, trailer
+  Future<TmdbMovieDetail> fetchMovieDetail(int movieId) async {
+    final detailUrl =
+        '$_base/movie/$movieId?api_key=$_apiKey&language=en-US&append_to_response=credits,images,videos';
+    final response = await http.get(Uri.parse(detailUrl));
+    if (response.statusCode != 200) {
+      throw Exception('TMDB detail error: ${response.statusCode}');
+    }
+    final data = json.decode(response.body);
+
+    // Genres
+    final genres = (data['genres'] as List? ?? [])
+        .map((g) => g['name'] as String)
+        .toList();
+
+    // Cast (top 10)
+    final castList = (data['credits']?['cast'] as List? ?? [])
+        .take(10)
+        .map((c) => TmdbCastMember.fromJson(c))
+        .toList();
+
+    // Backdrops (top 5, no language filter)
+    final backdrops = ((data['images']?['backdrops'] as List?) ?? [])
+        .take(5)
+        .map((b) => TmdbImage.fromJson(b))
+        .toList();
+
+    // Trailer
+    String? trailerKey;
+    final videos = (data['videos']?['results'] as List? ?? []);
+    final trailer = videos.firstWhere(
+      (v) => v['type'] == 'Trailer' && v['site'] == 'YouTube',
+      orElse: () => null,
+    );
+    trailerKey = trailer?['key'];
+
+    return TmdbMovieDetail(
+      id: data['id'] ?? movieId,
+      title: data['title'] ?? '',
+      posterPath: data['poster_path'],
+      backdropPath: data['backdrop_path'],
+      releaseDate: data['release_date'] ?? '',
+      rating: (data['vote_average'] ?? 0.0).toDouble(),
+      overview: data['overview'] ?? '',
+      runtime: data['runtime'],
+      genres: genres,
+      cast: castList,
+      backdrops: backdrops,
+      trailerKey: trailerKey,
+    );
   }
 
   Future<List<TmdbMovie>> _fetch(String endpoint) async {

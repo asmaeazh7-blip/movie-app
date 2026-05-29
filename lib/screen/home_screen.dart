@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../services/tmbd_service.dart';
 import 'movie_detail_screen.dart';
+import 'see_all_screen.dart';
 
 // ─────────────────────────────────────────────
 //  COLORS
@@ -235,7 +236,17 @@ class _HomeBody extends StatelessWidget {
           const SizedBox(height: 24),
 
           // ── Top Rated Section
-          _SectionHeader(title: 'Top Rated ⭐', onSeeAll: () {}),
+          _SectionHeader(title: 'Top Rated ⭐', onSeeAll: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => SeeAllScreen(
+                  title: 'Top Rated ⭐',
+                  future: topRatedFuture,
+                ),
+              ),
+            );
+          }),
           const SizedBox(height: 12),
           FutureBuilder<List<TmdbMovie>>(
             future: topRatedFuture,
@@ -252,7 +263,17 @@ class _HomeBody extends StatelessWidget {
           const SizedBox(height: 24),
 
           // ── Trending Section
-          _SectionHeader(title: 'Trending 🔥', onSeeAll: () {}),
+          _SectionHeader(title: 'Trending 🔥', onSeeAll: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => SeeAllScreen(
+                  title: 'Trending 🔥',
+                  future: trendingFuture,
+                ),
+              ),
+            );
+          }),
           const SizedBox(height: 12),
           FutureBuilder<List<TmdbMovie>>(
             future: trendingFuture,
@@ -428,6 +449,9 @@ void _openDetail(BuildContext context, TmdbMovie m) {
         genre: '',
         color: _movieColor(m),
         description: m.overview,
+        movieId: m.id,
+        posterUrl: m.posterUrl,
+        backdropUrl: m.backdropUrl,
       ),
     ),
   );
