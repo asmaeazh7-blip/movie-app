@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'home_screen.dart';
 
 // ─────────────────────────────────────────────
 //  COLORS
@@ -131,7 +132,14 @@ class _LoginFormState extends State<_LoginForm> {
     await Future.delayed(const Duration(seconds: 1));
     if (mounted) {
       setState(() => _loading = false);
-      widget.onDone?.call();
+      Navigator.of(context).pushReplacement(
+        PageRouteBuilder(
+          transitionDuration: const Duration(milliseconds: 700),
+          pageBuilder: (_, __, ___) => const HomeScreen(),
+          transitionsBuilder: (_, anim, __, child) =>
+              FadeTransition(opacity: anim, child: child),
+        ),
+      );
     }
   }
 
@@ -314,7 +322,14 @@ class _RegisterFormState extends State<_RegisterForm> {
     await Future.delayed(const Duration(seconds: 1));
     if (mounted) {
       setState(() => _loading = false);
-      widget.onDone?.call();
+      Navigator.of(context).pushReplacement(
+        PageRouteBuilder(
+          transitionDuration: const Duration(milliseconds: 700),
+          pageBuilder: (_, __, ___) => const HomeScreen(),
+          transitionsBuilder: (_, anim, __, child) =>
+              FadeTransition(opacity: anim, child: child),
+        ),
+      );
     }
   }
 
