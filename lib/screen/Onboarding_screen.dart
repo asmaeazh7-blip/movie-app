@@ -2,6 +2,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'auth_screen.dart';
+import 'home_screen.dart';
 // ─────────────────────────────────────────────
 //  COLOR PALETTE  (from user's references)
 // ─────────────────────────────────────────────
@@ -132,7 +133,16 @@ class _OnboardingScreenState extends State<OnboardingScreen>
     Navigator.of(context).pushReplacement(
       PageRouteBuilder(
         transitionDuration: const Duration(milliseconds: 700),
-        pageBuilder: (_, __, ___) => const AuthScreen(),
+        pageBuilder: (_, __, ___) => AuthScreen(
+          onDone: () => Navigator.of(context).pushReplacement(
+            PageRouteBuilder(
+              transitionDuration: const Duration(milliseconds: 600),
+              pageBuilder: (_, __, ___) => const HomeScreen(),
+              transitionsBuilder: (_, anim, __, child) =>
+                  FadeTransition(opacity: anim, child: child),
+            ),
+          ),
+        ),
         transitionsBuilder: (_, anim, __, child) =>
             FadeTransition(opacity: anim, child: child),
       ),

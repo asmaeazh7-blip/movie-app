@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'home_screen.dart';
 
 // ─────────────────────────────────────────────
 //  COLORS
@@ -128,11 +129,18 @@ class _LoginFormState extends State<_LoginForm> {
 
   void _submit() async {
     setState(() => _loading = true);
-    await Future.delayed(const Duration(seconds: 1));
-    if (mounted) {
-      setState(() => _loading = false);
-      widget.onDone?.call();
-    }
+    await Future.delayed(const Duration(milliseconds: 800));
+    if (!mounted) return;
+    setState(() => _loading = false);
+    Navigator.of(context).pushAndRemoveUntil(
+      PageRouteBuilder(
+        transitionDuration: const Duration(milliseconds: 600),
+        pageBuilder: (_, __, ___) => const HomeScreen(),
+        transitionsBuilder: (_, anim, __, child) =>
+            FadeTransition(opacity: anim, child: child),
+      ),
+      (route) => false,
+    );
   }
 
   @override
@@ -311,11 +319,18 @@ class _RegisterFormState extends State<_RegisterForm> {
 
   void _submit() async {
     setState(() => _loading = true);
-    await Future.delayed(const Duration(seconds: 1));
-    if (mounted) {
-      setState(() => _loading = false);
-      widget.onDone?.call();
-    }
+    await Future.delayed(const Duration(milliseconds: 800));
+    if (!mounted) return;
+    setState(() => _loading = false);
+    Navigator.of(context).pushAndRemoveUntil(
+      PageRouteBuilder(
+        transitionDuration: const Duration(milliseconds: 600),
+        pageBuilder: (_, __, ___) => const HomeScreen(),
+        transitionsBuilder: (_, anim, __, child) =>
+            FadeTransition(opacity: anim, child: child),
+      ),
+      (route) => false,
+    );
   }
 
   @override
