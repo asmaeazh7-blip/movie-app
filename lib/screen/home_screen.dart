@@ -1,6 +1,6 @@
-import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../services/tmbd_service.dart';
 import 'movie_detail_screen.dart';
 
 // ─────────────────────────────────────────────
@@ -23,73 +23,56 @@ class C {
   static const sdOrange= Color(0xFFFF9800);
 }
 
-// ─────────────────────────────────────────────
-//  FAKE DATA
-// ─────────────────────────────────────────────
-class Movie {
-  const Movie({
-    required this.title,
-    required this.year,
-    required this.duration,
-    required this.rating,
-    required this.genre,
-    required this.color,
-    this.isHD = true,
-    this.isFeatured = false,
-  });
-  final String title;
-  final String year;
-  final String duration;
-  final double rating;
-  final String genre;
-  final Color color;
-  final bool isHD;
-  final bool isFeatured;
-}
-
-const _featured = [
-  Movie(title: 'Day Shift', year: '2022', duration: '114 min', rating: 6.2, genre: 'Action', color: Color(0xFF8B4513), isFeatured: true),
-  Movie(title: 'The Beekeeper', year: '2024', duration: '105 min', rating: 7.1, genre: 'Action', color: Color(0xFFB8860B), isFeatured: true),
-  Movie(title: 'Minions', year: '2022', duration: '87 min', rating: 6.5, genre: 'Comedy', color: Color(0xFF4169E1), isFeatured: true),
-];
-
-const _newMovies = [
-  Movie(title: 'Lilo & Stitch', year: '2025', duration: '108 min', rating: 7.2, genre: 'Family', color: Color(0xFF2E8B57)),
-  Movie(title: 'House of David', year: '2025', duration: '95 min', rating: 7.8, genre: 'Drama', color: Color(0xFF8B6914)),
-  Movie(title: 'Mickey 17', year: '2025', duration: '137 min', rating: 6.8, genre: 'Sci-Fi', color: Color(0xFF4A4A6A)),
-  Movie(title: 'Prey', year: '2022', duration: '99 min', rating: 7.1, genre: 'Action', color: Color(0xFF556B2F)),
-];
-
-const _topRated = [
-  Movie(title: 'Inception', year: '2010', duration: '148 min', rating: 8.8, genre: 'Sci-Fi', color: Color(0xFF1C3A5E)),
-  Movie(title: 'Interstellar', year: '2014', duration: '169 min', rating: 8.6, genre: 'Sci-Fi', color: Color(0xFF2C1810)),
-  Movie(title: 'Parasite', year: '2019', duration: '132 min', rating: 8.5, genre: 'Thriller', color: Color(0xFF3D2B1F)),
-  Movie(title: 'Oppenheimer', year: '2023', duration: '180 min', rating: 8.4, genre: 'Drama', color: Color(0xFF4A3728)),
-];
-
 const _categories = ['All', 'Adventure', 'Comedy', 'Fantasy', 'Action', 'Drama', 'Sci-Fi', 'Horror'];
+const _tabLabels  = ['Top Rated', 'New', 'Trending', 'Movies'];
 
 // ─────────────────────────────────────────────
 //  HOME SCREEN
 // ─────────────────────────────────────────────
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
-
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  int _navIndex = 0;
-  int _catIndex = 0;
-  int _tabIndex = 1; // 0=Top Rated, 1=New, 2=Trending, 3=Movies
-  final _pageCtrl = PageController(viewportFraction: 0.88);
+  final _svc = TMDBService();
+
+  int _navIndex   = 0;
+  int _catIndex   = 0;
+  int _tabIndex   = 1;
   int _featuredIndex = 0;
+  final _pageCtrl = PageController(viewportFraction: 0.88);
+
+  // TMDB futures
+  late Future<List<TmdbMovie>> _popularFuture;
+  late Future<List<TmdbMovie>> _topRatedFuture;
+  late Future<List<TmdbMovie>> _trendingFuture;
+  late Future<List<TmdbMovie>> _nowPlayingFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _popularFuture    = _svc.fetchPopular();
+    _topRatedFuture   = _svc.fetchTopRated();
+    _trendingFuture   = _svc.fetchTrending();
+    _nowPlayingFuture = _svc.fetchNowPlaying();
+  }
 
   @override
   void dispose() {
     _pageCtrl.dispose();
     super.dispose();
+  }
+
+  // Return the correct future based on tab index
+  Future<List<TmdbMovie>> get _tabFuture {
+    switch (_tabIndex) {
+      case 0: return _topRatedFuture;
+      case 2: return _trendingFuture;
+      case 3: return _popularFuture;
+      default: return _nowPlayingFuture; // New
+    }
   }
 
   @override
@@ -99,10 +82,7 @@ class _HomeScreenState extends State<HomeScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // ── Top Bar ──
             _TopBar(),
-            
-            // ── Scrollable Content ──
             Expanded(
               child: SingleChildScrollView(
                 physics: const BouncingScrollPhysics(),
@@ -110,49 +90,105 @@ class _HomeScreenState extends State<HomeScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const SizedBox(height: 16),
-                    
-                    // Featured Carousel
-                    _FeaturedCarousel(
-                      ctrl: _pageCtrl,
-                      onPageChanged: (i) => setState(() => _featuredIndex = i),
-                      currentIndex: _featuredIndex,
+
+                    // ── Featured Carousel (Popular movies)
+                    FutureBuilder<List<TmdbMovie>>(
+                      future: _popularFuture,
+                      builder: (ctx, snap) {
+                        if (snap.connectionState == ConnectionState.waiting) {
+                          return const SizedBox(
+                            height: 228,
+                            child: Center(child: CircularProgressIndicator(color: C.gold)),
+                          );
+                        }
+                        if (snap.hasError || !snap.hasData || snap.data!.isEmpty) {
+                          return const SizedBox(height: 228, child: Center(
+                            child: Text('Failed to load', style: TextStyle(color: C.sub)),
+                          ));
+                        }
+                        final featured = snap.data!.take(5).toList();
+                        return _FeaturedCarousel(
+                          movies: featured,
+                          ctrl: _pageCtrl,
+                          currentIndex: _featuredIndex,
+                          onPageChanged: (i) => setState(() => _featuredIndex = i),
+                        );
+                      },
                     ),
-                    
+
                     const SizedBox(height: 20),
-                    
-                    // Category Tabs
+
+                    // ── Category Tabs
                     _CategoryTabs(
                       selected: _catIndex,
                       onTap: (i) => setState(() => _catIndex = i),
                     ),
-                    
+
                     const SizedBox(height: 20),
-                    
-                    // Filter Tabs (Top Rated / New / Trending / Movies)
+
+                    // ── Filter Tabs
                     _FilterTabs(
                       selected: _tabIndex,
                       onTap: (i) => setState(() => _tabIndex = i),
                     ),
-                    
+
                     const SizedBox(height: 16),
-                    
-                    // Movie Grid
-                    _MovieGrid(movies: _tabIndex == 0 ? _topRated : _newMovies),
-                    
+
+                    // ── Movie Grid (based on selected tab)
+                    FutureBuilder<List<TmdbMovie>>(
+                      future: _tabFuture,
+                      builder: (ctx, snap) {
+                        if (snap.connectionState == ConnectionState.waiting) {
+                          return const SizedBox(
+                            height: 300,
+                            child: Center(child: CircularProgressIndicator(color: C.gold)),
+                          );
+                        }
+                        if (!snap.hasData || snap.data!.isEmpty) {
+                          return const SizedBox(height: 300, child: Center(
+                            child: Text('No movies', style: TextStyle(color: C.sub)),
+                          ));
+                        }
+                        return _MovieGrid(movies: snap.data!.take(4).toList());
+                      },
+                    ),
+
                     const SizedBox(height: 20),
-                    
-                    // Top Rated Section
+
+                    // ── Top Rated Section
                     _SectionHeader(title: 'Top Rated', onSeeAll: () {}),
                     const SizedBox(height: 12),
-                    _HorizontalMovieList(movies: _topRated),
-                    
+                    FutureBuilder<List<TmdbMovie>>(
+                      future: _topRatedFuture,
+                      builder: (ctx, snap) {
+                        if (snap.connectionState == ConnectionState.waiting) {
+                          return const SizedBox(height: 200, child: Center(
+                            child: CircularProgressIndicator(color: C.gold),
+                          ));
+                        }
+                        if (!snap.hasData || snap.data!.isEmpty) return const SizedBox.shrink();
+                        return _HorizontalMovieList(movies: snap.data!.take(8).toList());
+                      },
+                    ),
+
                     const SizedBox(height: 20),
-                    
-                    // Movies Section
-                    _SectionHeader(title: 'Movies', onSeeAll: () {}),
+
+                    // ── Trending Section
+                    _SectionHeader(title: 'Trending', onSeeAll: () {}),
                     const SizedBox(height: 12),
-                    _HorizontalMovieList(movies: _newMovies),
-                    
+                    FutureBuilder<List<TmdbMovie>>(
+                      future: _trendingFuture,
+                      builder: (ctx, snap) {
+                        if (snap.connectionState == ConnectionState.waiting) {
+                          return const SizedBox(height: 200, child: Center(
+                            child: CircularProgressIndicator(color: C.gold),
+                          ));
+                        }
+                        if (!snap.hasData || snap.data!.isEmpty) return const SizedBox.shrink();
+                        return _HorizontalMovieList(movies: snap.data!.take(8).toList());
+                      },
+                    ),
+
                     const SizedBox(height: 24),
                   ],
                 ),
@@ -161,11 +197,73 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
       ),
-      
-      // ── Bottom Navigation ──
       bottomNavigationBar: _BottomNav(
         currentIndex: _navIndex,
         onTap: (i) => setState(() => _navIndex = i),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────
+//  HELPERS
+// ─────────────────────────────────────────────
+
+/// Map a TMDB movie index to a deterministic accent color for the card gradient
+Color _movieColor(TmdbMovie m) {
+  final colors = [
+    const Color(0xFF8B4513),
+    const Color(0xFFB8860B),
+    const Color(0xFF4169E1),
+    const Color(0xFF2E8B57),
+    const Color(0xFF8B6914),
+    const Color(0xFF4A4A6A),
+    const Color(0xFF556B2F),
+    const Color(0xFF1C3A5E),
+    const Color(0xFF2C1810),
+    const Color(0xFF3D2B1F),
+    const Color(0xFF4A3728),
+    const Color(0xFF5C3317),
+    const Color(0xFF1A3A4A),
+    const Color(0xFF3B1F2B),
+  ];
+  return colors[m.id % colors.length];
+}
+
+// ─────────────────────────────────────────────
+//  NETWORK POSTER  (with fallback gradient)
+// ─────────────────────────────────────────────
+class _PosterImage extends StatelessWidget {
+  const _PosterImage({required this.movie, this.width, this.height, this.fit});
+  final TmdbMovie movie;
+  final double? width;
+  final double? height;
+  final BoxFit? fit;
+
+  @override
+  Widget build(BuildContext context) {
+    if (movie.posterUrl.isEmpty) {
+      return Container(
+        width: width, height: height,
+        color: _movieColor(movie).withOpacity(0.5),
+        child: const Icon(Icons.movie_rounded, color: Colors.white30, size: 40),
+      );
+    }
+    return Image.network(
+      movie.posterUrl,
+      width: width, height: height,
+      fit: fit ?? BoxFit.cover,
+      loadingBuilder: (_, child, prog) => prog == null
+          ? child
+          : Container(
+              width: width, height: height,
+              color: _movieColor(movie).withOpacity(0.3),
+              child: const Center(child: CircularProgressIndicator(color: C.gold, strokeWidth: 2)),
+            ),
+      errorBuilder: (_, __, ___) => Container(
+        width: width, height: height,
+        color: _movieColor(movie).withOpacity(0.4),
+        child: const Icon(Icons.broken_image_rounded, color: Colors.white30, size: 40),
       ),
     );
   }
@@ -181,7 +279,6 @@ class _TopBar extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
       child: Row(
         children: [
-          // Logo
           Container(
             width: 36, height: 36,
             decoration: BoxDecoration(
@@ -202,20 +299,15 @@ class _TopBar extends StatelessWidget {
             ),
           ),
           const Spacer(),
-          // Search icon
           _IconBtn(icon: Icons.search_rounded, onTap: () {}),
           const SizedBox(width: 8),
-          // Notification
           _IconBtn(icon: Icons.notifications_outlined, onTap: () {}),
           const SizedBox(width: 8),
-          // Avatar
           Container(
             width: 36, height: 36,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              gradient: const LinearGradient(
-                colors: [C.purple, C.wine],
-              ),
+              gradient: const LinearGradient(colors: [C.purple, C.wine]),
               border: Border.all(color: C.gold.withOpacity(0.5), width: 1.5),
             ),
             child: const Icon(Icons.person_rounded, color: C.cream, size: 20),
@@ -249,17 +341,19 @@ class _IconBtn extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────
-//  FEATURED CAROUSEL
+//  FEATURED CAROUSEL  (real TMDB posters)
 // ─────────────────────────────────────────────
 class _FeaturedCarousel extends StatelessWidget {
   const _FeaturedCarousel({
+    required this.movies,
     required this.ctrl,
-    required this.onPageChanged,
     required this.currentIndex,
+    required this.onPageChanged,
   });
+  final List<TmdbMovie> movies;
   final PageController ctrl;
-  final ValueChanged<int> onPageChanged;
   final int currentIndex;
+  final ValueChanged<int> onPageChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -270,9 +364,9 @@ class _FeaturedCarousel extends StatelessWidget {
           child: PageView.builder(
             controller: ctrl,
             onPageChanged: onPageChanged,
-            itemCount: _featured.length,
+            itemCount: movies.length,
             itemBuilder: (_, i) {
-              final m = _featured[i];
+              final m = movies[i];
               return AnimatedScale(
                 scale: i == currentIndex ? 1.0 : 0.95,
                 duration: const Duration(milliseconds: 300),
@@ -285,10 +379,9 @@ class _FeaturedCarousel extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 12),
-        // Dots
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
-          children: List.generate(_featured.length, (i) {
+          children: List.generate(movies.length, (i) {
             final active = i == currentIndex;
             return AnimatedContainer(
               duration: const Duration(milliseconds: 300),
@@ -309,127 +402,140 @@ class _FeaturedCarousel extends StatelessWidget {
 
 class _FeaturedCard extends StatelessWidget {
   const _FeaturedCard({required this.movie});
-  final Movie movie;
+  final TmdbMovie movie;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            movie.color,
-            movie.color.withOpacity(0.6),
-            Colors.black.withOpacity(0.8),
+    final color = _movieColor(movie);
+    return GestureDetector(
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => MovieDetailScreen(
+            title: movie.title,
+            year: movie.year,
+            duration: '—',
+            rating: movie.ratingRounded,
+            genre: '',
+            color: color,
+            description: movie.overview,
+          ),
+        ),
+      ),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          color: color,
+          boxShadow: [
+            BoxShadow(
+              color: color.withOpacity(0.4),
+              blurRadius: 20,
+              offset: const Offset(0, 8),
+            ),
           ],
         ),
-        boxShadow: [
-          BoxShadow(
-            color: movie.color.withOpacity(0.4),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Stack(
-        children: [
-          // Background pattern
-          Positioned.fill(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(20),
-              child: CustomPaint(painter: _CardPatternPainter(movie.color)),
-            ),
-          ),
-          // Content
-          Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                // Rating badge
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.5),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.star_rounded, color: C.gold, size: 14),
-                      const SizedBox(width: 4),
-                      Text(
-                        movie.rating.toString(),
-                        style: GoogleFonts.dmSans(
-                          color: C.cream, fontSize: 12, fontWeight: FontWeight.w700,
-                        ),
-                      ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(20),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              // Backdrop image
+              if (movie.backdropUrl.isNotEmpty)
+                Image.network(
+                  movie.backdropUrl,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => Container(color: color),
+                )
+              else
+                Container(color: color),
+
+              // Gradient overlay
+              Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.transparent,
+                      Colors.black.withOpacity(0.8),
                     ],
                   ),
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  movie.title,
-                  style: GoogleFonts.dmSans(
-                    color: Colors.white, fontSize: 22,
-                    fontWeight: FontWeight.w800, height: 1.1,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  '${movie.year}  •  ${movie.duration}  •  ${movie.genre}',
-                  style: GoogleFonts.dmSans(
-                    color: Colors.white.withOpacity(0.7), fontSize: 12,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          // Bookmark
-          Positioned(
-            top: 12, right: 12,
-            child: Container(
-              width: 32, height: 32,
-              decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.4),
-                borderRadius: BorderRadius.circular(8),
               ),
-              child: const Icon(Icons.bookmark_border_rounded, color: Colors.white, size: 18),
-            ),
+
+              // Content
+              Positioned(
+                left: 16, right: 16, bottom: 14,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withOpacity(0.5),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.star_rounded, color: C.gold, size: 14),
+                              const SizedBox(width: 4),
+                              Text(
+                                movie.ratingRounded.toString(),
+                                style: GoogleFonts.dmSans(
+                                  color: C.cream, fontSize: 12, fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      movie.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.dmSans(
+                        color: Colors.white, fontSize: 20,
+                        fontWeight: FontWeight.w800, height: 1.1,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      movie.year,
+                      style: GoogleFonts.dmSans(
+                        color: Colors.white.withOpacity(0.7), fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Bookmark
+              Positioned(
+                top: 12, right: 12,
+                child: Container(
+                  width: 32, height: 32,
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.4),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(Icons.bookmark_border_rounded, color: Colors.white, size: 18),
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
 }
 
-class _CardPatternPainter extends CustomPainter {
-  const _CardPatternPainter(this.color);
-  final Color color;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.white.withOpacity(0.04)
-      ..style = PaintingStyle.fill;
-    for (var i = 0; i < 5; i++) {
-      canvas.drawCircle(
-        Offset(size.width * 0.8, size.height * 0.3),
-        40.0 + i * 25,
-        paint,
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(_) => false;
-}
-
 // ─────────────────────────────────────────────
-//  CATEGORY TABS (All, Adventure, Comedy...)
+//  CATEGORY TABS
 // ─────────────────────────────────────────────
 class _CategoryTabs extends StatelessWidget {
   const _CategoryTabs({required this.selected, required this.onTap});
@@ -479,21 +585,19 @@ class _CategoryTabs extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────
-//  FILTER TABS (Top Rated / New / Trending)
+//  FILTER TABS
 // ─────────────────────────────────────────────
 class _FilterTabs extends StatelessWidget {
   const _FilterTabs({required this.selected, required this.onTap});
   final int selected;
   final ValueChanged<int> onTap;
 
-  static const _tabs = ['Top Rated', 'New', 'Trending', 'Movies'];
-
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Row(
-        children: List.generate(_tabs.length, (i) {
+        children: List.generate(_tabLabels.length, (i) {
           final active = i == selected;
           return GestureDetector(
             onTap: () => onTap(i),
@@ -502,7 +606,7 @@ class _FilterTabs extends StatelessWidget {
               child: Column(
                 children: [
                   Text(
-                    _tabs[i],
+                    _tabLabels[i],
                     style: GoogleFonts.dmSans(
                       color: active ? C.cream : C.sub,
                       fontSize: 14,
@@ -530,11 +634,11 @@ class _FilterTabs extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────
-//  MOVIE GRID  (2 columns)
+//  MOVIE GRID  (2 columns, real posters)
 // ─────────────────────────────────────────────
 class _MovieGrid extends StatelessWidget {
   const _MovieGrid({required this.movies});
-  final List<Movie> movies;
+  final List<TmdbMovie> movies;
 
   @override
   Widget build(BuildContext context) {
@@ -545,11 +649,11 @@ class _MovieGrid extends StatelessWidget {
         physics: const NeverScrollableScrollPhysics(),
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: 2,
-          childAspectRatio: 0.72,
+          childAspectRatio: 0.65,
           crossAxisSpacing: 12,
           mainAxisSpacing: 12,
         ),
-        itemCount: movies.length > 4 ? 4 : movies.length,
+        itemCount: movies.length,
         itemBuilder: (_, i) => _MovieCard(movie: movies[i]),
       ),
     );
@@ -558,123 +662,135 @@ class _MovieGrid extends StatelessWidget {
 
 class _MovieCard extends StatelessWidget {
   const _MovieCard({required this.movie});
-  final Movie movie;
+  final TmdbMovie movie;
 
   @override
   Widget build(BuildContext context) {
+    final color = _movieColor(movie);
     return GestureDetector(
-      onTap: () {
-        Navigator.push(context, MaterialPageRoute(builder: (_) => MovieDetailScreen(
-          title: movie.title,
-          year: movie.year,
-          duration: movie.duration,
-          rating: movie.rating,
-          genre: movie.genre,
-          color: movie.color,
-        )));
-      },
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => MovieDetailScreen(
+            title: movie.title,
+            year: movie.year,
+            duration: '—',
+            rating: movie.ratingRounded,
+            genre: '',
+            color: color,
+            description: movie.overview,
+          ),
+        ),
+      ),
       child: Container(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(16),
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              movie.color.withOpacity(0.9),
-              movie.color.withOpacity(0.4),
-              Colors.black.withOpacity(0.85),
-            ],
-          ),
+          color: color.withOpacity(0.3),
           boxShadow: [
             BoxShadow(
-              color: movie.color.withOpacity(0.25),
+              color: color.withOpacity(0.25),
               blurRadius: 12,
               offset: const Offset(0, 6),
             ),
           ],
         ),
-        child: Stack(
-          children: [
-            // Pattern
-            Positioned.fill(
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: CustomPaint(painter: _CardPatternPainter(movie.color)),
-              ),
-            ),
-            // HD/SD badge
-            Positioned(
-              top: 10, left: 10,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: movie.isHD ? C.hdGreen : C.sdOrange,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text(
-                  movie.isHD ? 'HD' : 'SD',
-                  style: GoogleFonts.spaceMono(
-                    color: Colors.white, fontSize: 9, fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ),
-            // Bookmark
-            Positioned(
-              top: 8, right: 8,
-              child: Container(
-                width: 28, height: 28,
-                decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.4),
-                  borderRadius: BorderRadius.circular(7),
-                ),
-                child: const Icon(Icons.bookmark_border_rounded, color: Colors.white, size: 16),
-              ),
-            ),
-            // Movie title icon (big)
-            Positioned.fill(
-              child: Center(
-                child: Icon(
-                  Icons.play_circle_outline_rounded,
-                  color: Colors.white.withOpacity(0.15),
-                  size: 64,
-                ),
-              ),
-            ),
-            // Info at bottom
-            Positioned(
-              left: 10, right: 10, bottom: 10,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    movie.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.dmSans(
-                      color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              // Poster image
+              if (movie.posterUrl.isNotEmpty)
+                Image.network(
+                  movie.posterUrl,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => Container(color: color.withOpacity(0.4)),
+                )
+              else
+                Container(color: color.withOpacity(0.4)),
+
+              // Bottom gradient + info
+              Positioned(
+                left: 0, right: 0, bottom: 0,
+                child: Container(
+                  padding: const EdgeInsets.fromLTRB(8, 24, 8, 8),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.transparent,
+                        Colors.black.withOpacity(0.85),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Row(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        movie.year,
-                        style: GoogleFonts.dmSans(color: C.sub, fontSize: 11),
+                        movie.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.dmSans(
+                          color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700,
+                        ),
                       ),
-                      const SizedBox(width: 6),
-                      const Icon(Icons.circle, color: C.sub, size: 3),
-                      const SizedBox(width: 6),
-                      Text(
-                        movie.duration,
-                        style: GoogleFonts.dmSans(color: C.sub, fontSize: 11),
+                      const SizedBox(height: 3),
+                      Row(
+                        children: [
+                          Text(
+                            movie.year,
+                            style: GoogleFonts.dmSans(color: C.sub, fontSize: 10),
+                          ),
+                          const SizedBox(width: 6),
+                          const Icon(Icons.star_rounded, color: C.gold, size: 11),
+                          const SizedBox(width: 2),
+                          Text(
+                            movie.ratingRounded.toString(),
+                            style: GoogleFonts.dmSans(
+                              color: C.gold, fontSize: 10, fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
-                ],
+                ),
               ),
-            ),
-          ],
+
+              // HD badge
+              Positioned(
+                top: 8, left: 8,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: C.hdGreen,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    'HD',
+                    style: GoogleFonts.spaceMono(
+                      color: Colors.white, fontSize: 8, fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ),
+
+              // Bookmark
+              Positioned(
+                top: 6, right: 6,
+                child: Container(
+                  width: 26, height: 26,
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.5),
+                    borderRadius: BorderRadius.circular(7),
+                  ),
+                  child: const Icon(Icons.bookmark_border_rounded, color: Colors.white, size: 14),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -718,11 +834,11 @@ class _SectionHeader extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────
-//  HORIZONTAL MOVIE LIST
+//  HORIZONTAL MOVIE LIST  (real posters)
 // ─────────────────────────────────────────────
 class _HorizontalMovieList extends StatelessWidget {
   const _HorizontalMovieList({required this.movies});
-  final List<Movie> movies;
+  final List<TmdbMovie> movies;
 
   @override
   Widget build(BuildContext context) {
@@ -734,79 +850,90 @@ class _HorizontalMovieList extends StatelessWidget {
         itemCount: movies.length,
         itemBuilder: (_, i) {
           final m = movies[i];
+          final color = _movieColor(m);
           return GestureDetector(
-            onTap: () {},
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => MovieDetailScreen(
+                  title: m.title,
+                  year: m.year,
+                  duration: '—',
+                  rating: m.ratingRounded,
+                  genre: '',
+                  color: color,
+                  description: m.overview,
+                ),
+              ),
+            ),
             child: Container(
               width: 130,
               margin: const EdgeInsets.only(right: 12),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(14),
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    m.color.withOpacity(0.9),
-                    Colors.black.withOpacity(0.85),
-                  ],
-                ),
+                color: color.withOpacity(0.3),
                 boxShadow: [
                   BoxShadow(
-                    color: m.color.withOpacity(0.3),
+                    color: color.withOpacity(0.3),
                     blurRadius: 10,
                     offset: const Offset(0, 5),
                   ),
                 ],
               ),
-              child: Stack(
-                children: [
-                  Positioned.fill(
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(14),
-                      child: CustomPaint(painter: _CardPatternPainter(m.color)),
-                    ),
-                  ),
-                  Positioned.fill(
-                    child: Center(
-                      child: Icon(
-                        Icons.play_circle_outline_rounded,
-                        color: Colors.white.withOpacity(0.12),
-                        size: 50,
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    left: 8, right: 8, bottom: 8,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          m.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: GoogleFonts.dmSans(
-                            color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(14),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    if (m.posterUrl.isNotEmpty)
+                      Image.network(m.posterUrl, fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Container(color: color.withOpacity(0.4)),
+                      )
+                    else
+                      Container(color: color.withOpacity(0.4)),
+
+                    Positioned(
+                      left: 0, right: 0, bottom: 0,
+                      child: Container(
+                        padding: const EdgeInsets.fromLTRB(7, 20, 7, 7),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [Colors.transparent, Colors.black.withOpacity(0.85)],
                           ),
                         ),
-                        const SizedBox(height: 3),
-                        Row(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
                           children: [
                             Text(
-                              m.year,
-                              style: GoogleFonts.dmSans(color: C.sub, fontSize: 10),
+                              m.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.dmSans(
+                                color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700,
+                              ),
                             ),
-                            const SizedBox(width: 4),
-                            const Icon(Icons.star_rounded, color: C.gold, size: 11),
-                            const SizedBox(width: 2),
-                            Text(
-                              m.rating.toString(),
-                              style: GoogleFonts.dmSans(color: C.gold, fontSize: 10, fontWeight: FontWeight.w700),
+                            const SizedBox(height: 3),
+                            Row(
+                              children: [
+                                Text(m.year, style: GoogleFonts.dmSans(color: C.sub, fontSize: 10)),
+                                const SizedBox(width: 4),
+                                const Icon(Icons.star_rounded, color: C.gold, size: 11),
+                                const SizedBox(width: 2),
+                                Text(
+                                  m.ratingRounded.toString(),
+                                  style: GoogleFonts.dmSans(color: C.gold, fontSize: 10, fontWeight: FontWeight.w700),
+                                ),
+                              ],
                             ),
                           ],
                         ),
-                      ],
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           );
@@ -825,10 +952,10 @@ class _BottomNav extends StatelessWidget {
   final ValueChanged<int> onTap;
 
   static const _items = [
-    (icon: Icons.home_rounded, label: 'Home'),
-    (icon: Icons.search_rounded, label: 'Search'),
+    (icon: Icons.home_rounded,     label: 'Home'),
+    (icon: Icons.search_rounded,   label: 'Search'),
     (icon: Icons.favorite_rounded, label: 'Favorites'),
-    (icon: Icons.person_rounded, label: 'Profile'),
+    (icon: Icons.person_rounded,   label: 'Profile'),
   ];
 
   @override
@@ -845,7 +972,6 @@ class _BottomNav extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: List.generate(_items.length, (i) {
-          // middle FAB-style search
           if (i == 1) {
             return GestureDetector(
               onTap: () => onTap(i),
@@ -872,20 +998,13 @@ class _BottomNav extends StatelessWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(
-                  _items[i].icon,
-                  color: active ? C.gold : C.sub,
-                  size: 24,
-                ),
+                Icon(_items[i].icon, color: active ? C.gold : C.sub, size: 24),
                 const SizedBox(height: 4),
                 AnimatedContainer(
                   duration: const Duration(milliseconds: 250),
                   width: active ? 4 : 0,
                   height: 4,
-                  decoration: const BoxDecoration(
-                    color: C.gold,
-                    shape: BoxShape.circle,
-                  ),
+                  decoration: const BoxDecoration(color: C.gold, shape: BoxShape.circle),
                 ),
               ],
             ),
