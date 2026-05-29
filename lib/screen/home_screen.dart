@@ -1,6 +1,7 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'movie_detail_screen.dart';
 
 // ─────────────────────────────────────────────
 //  COLORS
@@ -562,7 +563,16 @@ class _MovieCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () {},
+      onTap: () {
+        Navigator.push(context, MaterialPageRoute(builder: (_) => MovieDetailScreen(
+          title: movie.title,
+          year: movie.year,
+          duration: movie.duration,
+          rating: movie.rating,
+          genre: movie.genre,
+          color: movie.color,
+        )));
+      },
       child: Container(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(16),
