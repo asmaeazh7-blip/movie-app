@@ -24,7 +24,7 @@ class C {
   static const sdOrange = Color(0xFFFF9800);
 }
 
-const _categories = ['All', 'Action', 'Comedy', 'Drama', 'Sci-Fi', 'Horror', 'Fantasy', 'Adventure',];
+const _categories = ['All', 'Action', 'Comedy', 'Drama', 'Romance', 'Sci-Fi', 'Horror', 'Fantasy', 'Adventure',];
 const _tabLabels  = ['Top Rated', 'New', 'Trending', 'Movies'];
 
 const _countries = <String, String>{
@@ -573,6 +573,9 @@ void _openDetail(BuildContext context, TmdbMovie m) {
         genre: '',
         color: _movieColor(m),
         description: m.overview,
+        movieId: m.id,
+        posterUrl: m.posterUrl,
+        backdropUrl: m.backdropUrl,
       ),
     ),
   );

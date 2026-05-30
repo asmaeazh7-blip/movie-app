@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../services/tmbd_service.dart';
+import 'video_screen.dart';
+import 'Youtube_screen.dart';
 
 // ─────────────────────────────────────────────
 //  COLORS
@@ -33,6 +35,7 @@ class MovieDetailScreen extends StatefulWidget {
     this.movieId,
     this.posterUrl,
     this.backdropUrl,
+    this.videoUrl,
   });
 
   final String title;
@@ -45,6 +48,7 @@ class MovieDetailScreen extends StatefulWidget {
   final int? movieId;
   final String? posterUrl;
   final String? backdropUrl;
+  final String? videoUrl;
 
   @override
   State<MovieDetailScreen> createState() => _MovieDetailScreenState();
@@ -246,7 +250,47 @@ class _MovieDetailScreenState extends State<MovieDetailScreen>
                         children: [
                           Expanded(
                             child: GestureDetector(
-                              onTap: () {},
+                              onTap: () {
+                                // 1) إلا كان trailer من TMDB
+                                final trailerKey = _detail?.trailerKey;
+                                if (trailerKey != null && trailerKey.isNotEmpty) {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => YoutubeScreen(
+                                        trailerKey: trailerKey,
+                                        title: _displayTitle,
+                                      ),
+                                    ),
+                                  );
+                                  return;
+                                }
+                                // 2) إلا كان videoUrl مخصص
+                                final url = widget.videoUrl;
+                                if (url != null && url.isNotEmpty) {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => VideoScreen(
+                                        videoUrl: url,
+                                        title: _displayTitle,
+                                      ),
+                                    ),
+                                  );
+                                  return;
+                                }
+                                // 3) ما كانش والو
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      'No trailer available for this movie.',
+                                      style: GoogleFonts.dmSans(
+                                          color: Colors.white),
+                                    ),
+                                    backgroundColor: const Color(0xFF1A1A1A),
+                                  ),
+                                );
+                              },
                               child: Container(
                                 height: 52,
                                 decoration: BoxDecoration(
