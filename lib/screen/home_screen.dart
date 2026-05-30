@@ -3,7 +3,6 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../services/tmbd_service.dart';
 import 'movie_detail_screen.dart';
-import 'see_all_screen.dart';
 
 // ─────────────────────────────────────────────
 //  COLORS
@@ -25,22 +24,15 @@ class C {
   static const sdOrange = Color(0xFFFF9800);
 }
 
-const _categories = ['All', 'Action', 'Comedy', 'Drama', 'Romance', 'Sci-Fi', 'Horror', 'Fantasy', 'Adventure'];
+const _categories = ['All', 'Action', 'Comedy', 'Drama', 'Sci-Fi', 'Horror', 'Fantasy', 'Adventure',];
 const _tabLabels  = ['Top Rated', 'New', 'Trending', 'Movies'];
 
-// country code → display name (flag emoji + name)
-const _countries = {
-  'MA': '🇲🇦 Maroc',
+const _countries = <String, String>{
+  'MA': '🇲🇦 Morocco',
   'TR': '🇹🇷 Turkey',
-  'US': '🇺🇸 USA',
-  'FR': '🇫🇷 France',
   'IN': '🇮🇳 India',
-  'GB': '🇬🇧 UK',
   'KR': '🇰🇷 Korea',
   'JP': '🇯🇵 Japan',
-  'IT': '🇮🇹 Italy',
-  'ES': '🇪🇸 Spain',
-  'DE': '🇩🇪 Germany',
 };
 
 // ─────────────────────────────────────────────
@@ -55,10 +47,12 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateMixin {
   final _svc = TMDBService();
 
-  int _navIndex       = 0;
-  int _catIndex       = 0;
-  int _tabIndex       = 1;
-  int _featuredIndex  = 0;
+  int _navIndex      = 0;
+  int _catIndex      = 0;
+  int _tabIndex      = 1;
+  int _featuredIndex = 0;
+
+  String? _selectedCountry;
 
   final _pageCtrl = PageController(viewportFraction: 0.88);
 
@@ -66,14 +60,6 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   late Future<List<TmdbMovie>> _topRatedFuture;
   late Future<List<TmdbMovie>> _trendingFuture;
   late Future<List<TmdbMovie>> _nowPlayingFuture;
-
-  // Genre filter — null = All
-  Future<List<TmdbMovie>>? _genreFuture;
-
-  // Country filter — null = not filtering by country
-  String? _selectedCountryCode;
-  String? _selectedCountryGenre;
-  Future<List<TmdbMovie>>? _countryFuture;
 
   // Search
   bool _searchOpen = false;
@@ -83,10 +69,39 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   @override
   void initState() {
     super.initState();
-    _popularFuture    = _svc.fetchPopular();
-    _topRatedFuture   = _svc.fetchTopRated();
-    _trendingFuture   = _svc.fetchTrending();
-    _nowPlayingFuture = _svc.fetchNowPlaying();
+    _loadAll();
+  }
+
+  void _loadAll() {
+    final country = _selectedCountry;
+    final genreId = _catIndex > 0
+        ? tmdbGenreIds[_categories[_catIndex]]
+        : null;
+
+    if (country != null && genreId != null) {
+      final f = _svc.fetchByCountryAndGenre(country, genreId);
+      _popularFuture    = f;
+      _topRatedFuture   = f;
+      _trendingFuture   = f;
+      _nowPlayingFuture = f;
+    } else if (country != null) {
+      final f = _svc.fetchByCountry(country);
+      _popularFuture    = f;
+      _topRatedFuture   = f;
+      _trendingFuture   = f;
+      _nowPlayingFuture = f;
+    } else if (genreId != null) {
+      final f = _svc.fetchByGenre(genreId);
+      _popularFuture    = f;
+      _topRatedFuture   = f;
+      _trendingFuture   = f;
+      _nowPlayingFuture = f;
+    } else {
+      _popularFuture    = _svc.fetchPopular();
+      _topRatedFuture   = _svc.fetchTopRated();
+      _trendingFuture   = _svc.fetchTrending();
+      _nowPlayingFuture = _svc.fetchNowPlaying();
+    }
   }
 
   @override
@@ -114,51 +129,32 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   }
 
   void _onCatTap(int i) {
-    final cat = _categories[i];
-    if (cat == 'All') {
-      setState(() { _catIndex = i; _genreFuture = null; });
-    } else {
-      final genreId = tmdbGenreIds[cat];
-      setState(() {
-        _catIndex = i;
-        _genreFuture = genreId != null ? _svc.fetchByGenre(genreId) : null;
-      });
-    }
+    setState(() {
+      _catIndex = i;
+      _loadAll();
+    });
   }
 
-  void _onCountryTap(String? code) {
-    if (code == null) {
-      setState(() {
-        _selectedCountryCode  = null;
-        _selectedCountryGenre = null;
-        _countryFuture        = null;
-      });
-    } else {
-      setState(() {
-        _selectedCountryCode  = code;
-        _selectedCountryGenre = null;
-        _countryFuture        = _svc.fetchByCountry(code);
-      });
-    }
+  void _onCountrySelected(String? code) {
+    setState(() {
+      _selectedCountry = code;
+      _loadAll();
+    });
+    Navigator.pop(context);
   }
 
-  void _onCountryGenreTap(String? genreName) {
-    final code = _selectedCountryCode;
-    if (code == null) return;
-    if (genreName == null) {
-      setState(() {
-        _selectedCountryGenre = null;
-        _countryFuture        = _svc.fetchByCountry(code);
-      });
-    } else {
-      final genreId = tmdbGenreIds[genreName];
-      setState(() {
-        _selectedCountryGenre = genreName;
-        _countryFuture        = genreId != null
-            ? _svc.fetchByCountryAndGenre(code, genreId)
-            : _svc.fetchByCountry(code);
-      });
-    }
+  void _openCountrySheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: C.card,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (_) => _CountrySheet(
+        selected: _selectedCountry,
+        onSelect: _onCountrySelected,
+      ),
+    );
   }
 
   @override
@@ -168,7 +164,6 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       body: SafeArea(
         child: Column(
           children: [
-            // ── Top Bar
             _TopBar(
               onSearchTap: () => setState(() {
                 _searchOpen = !_searchOpen;
@@ -177,40 +172,29 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                   _searchFuture = null;
                 }
               }),
+              selectedCountry: _selectedCountry,
+              onCountryTap: _openCountrySheet,
             ),
-
-            // ── Search Field (expandable)
             AnimatedSize(
               duration: const Duration(milliseconds: 300),
               curve: Curves.easeOut,
               child: _searchOpen
-                  ? _SearchField(
-                      controller: _searchCtrl,
-                      onChanged: _onSearch,
-                    )
+                  ? _SearchField(controller: _searchCtrl, onChanged: _onSearch)
                   : const SizedBox.shrink(),
             ),
-
-            // ── Body
             Expanded(
               child: _searchFuture != null
                   ? _SearchResults(future: _searchFuture!)
                   : _HomeBody(
-                      popularFuture:        _popularFuture,
-                      topRatedFuture:       _topRatedFuture,
-                      trendingFuture:       _trendingFuture,
-                      tabFuture:            _tabFuture,
-                      genreFuture:          _genreFuture,
-                      countryFuture:        _countryFuture,
-                      selectedCountry:      _selectedCountryCode,
-                      selectedCountryGenre: _selectedCountryGenre,
-                      catIndex:             _catIndex,
-                      tabIndex:             _tabIndex,
-                      featuredIndex:        _featuredIndex,
-                      pageCtrl:             _pageCtrl,
-                      onCatTap:             _onCatTap,
-                      onCountryTap:         _onCountryTap,
-                      onCountryGenreTap:    _onCountryGenreTap,
+                      popularFuture:    _popularFuture,
+                      topRatedFuture:   _topRatedFuture,
+                      trendingFuture:   _trendingFuture,
+                      tabFuture:        _tabFuture,
+                      catIndex:         _catIndex,
+                      tabIndex:         _tabIndex,
+                      featuredIndex:    _featuredIndex,
+                      pageCtrl:         _pageCtrl,
+                      onCatTap:         _onCatTap,
                       onTabTap:   (i) => setState(() => _tabIndex = i),
                       onPageChanged: (i) => setState(() => _featuredIndex = i),
                     ),
@@ -227,6 +211,97 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
 }
 
 // ─────────────────────────────────────────────
+//  COUNTRY SHEET
+// ─────────────────────────────────────────────
+class _CountrySheet extends StatelessWidget {
+  const _CountrySheet({required this.selected, required this.onSelect});
+  final String? selected;
+  final ValueChanged<String?> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    final isAll = selected == null;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 40, height: 4,
+            decoration: BoxDecoration(
+              color: C.sub.withOpacity(0.4),
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text('Filter by Country',
+            style: GoogleFonts.dmSans(
+              color: C.cream, fontSize: 17, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 16),
+          // ── ALL option
+          GestureDetector(
+            onTap: () => onSelect(null),
+            child: Container(
+              margin: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+              decoration: BoxDecoration(
+                color: isAll ? C.rose.withOpacity(0.2) : C.card2,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: isAll ? C.rose : Colors.white.withOpacity(0.07)),
+              ),
+              child: Row(
+                children: [
+                  Text('🌍 All Countries',
+                    style: GoogleFonts.dmSans(
+                      color: isAll ? C.cream : C.text,
+                      fontSize: 15,
+                      fontWeight: isAll ? FontWeight.w700 : FontWeight.w400,
+                    )),
+                  const Spacer(),
+                  if (isAll)
+                    const Icon(Icons.check_circle_rounded, color: C.rose, size: 20),
+                ],
+              ),
+            ),
+          ),
+          // ── Country options
+          ..._countries.entries.map((e) {
+            final isSelected = e.key == selected;
+            return GestureDetector(
+              onTap: () => onSelect(e.key),
+              child: Container(
+                margin: const EdgeInsets.only(bottom: 10),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+                decoration: BoxDecoration(
+                  color: isSelected ? C.rose.withOpacity(0.2) : C.card2,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: isSelected ? C.rose : Colors.white.withOpacity(0.07)),
+                ),
+                child: Row(
+                  children: [
+                    Text(e.value,
+                      style: GoogleFonts.dmSans(
+                        color: isSelected ? C.cream : C.text,
+                        fontSize: 15,
+                        fontWeight: isSelected ? FontWeight.w700 : FontWeight.w400,
+                      )),
+                    const Spacer(),
+                    if (isSelected)
+                      const Icon(Icons.check_circle_rounded, color: C.rose, size: 20),
+                  ],
+                ),
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────
 //  HOME BODY
 // ─────────────────────────────────────────────
 class _HomeBody extends StatelessWidget {
@@ -235,17 +310,11 @@ class _HomeBody extends StatelessWidget {
     required this.topRatedFuture,
     required this.trendingFuture,
     required this.tabFuture,
-    required this.genreFuture,
-    required this.countryFuture,
-    required this.selectedCountry,
-    required this.selectedCountryGenre,
     required this.catIndex,
     required this.tabIndex,
     required this.featuredIndex,
     required this.pageCtrl,
     required this.onCatTap,
-    required this.onCountryTap,
-    required this.onCountryGenreTap,
     required this.onTabTap,
     required this.onPageChanged,
   });
@@ -254,16 +323,9 @@ class _HomeBody extends StatelessWidget {
   final Future<List<TmdbMovie>> topRatedFuture;
   final Future<List<TmdbMovie>> trendingFuture;
   final Future<List<TmdbMovie>> tabFuture;
-  final Future<List<TmdbMovie>>? genreFuture;
-  final Future<List<TmdbMovie>>? countryFuture;
-  final String? selectedCountry;
-  final String? selectedCountryGenre;
   final int catIndex, tabIndex, featuredIndex;
   final PageController pageCtrl;
-  final ValueChanged<int> onCatTap, onTabTap;
-  final ValueChanged<String?> onCountryTap;
-  final ValueChanged<String?> onCountryGenreTap;
-  final ValueChanged<int> onPageChanged;
+  final ValueChanged<int> onCatTap, onTabTap, onPageChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -273,16 +335,12 @@ class _HomeBody extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const SizedBox(height: 12),
-
-          // ── Featured Carousel
           FutureBuilder<List<TmdbMovie>>(
             future: popularFuture,
             builder: (_, snap) {
               if (snap.connectionState == ConnectionState.waiting) {
-                return const SizedBox(
-                  height: 230,
-                  child: Center(child: CircularProgressIndicator(color: C.gold)),
-                );
+                return const SizedBox(height: 230,
+                    child: Center(child: CircularProgressIndicator(color: C.gold)));
               }
               if (snap.hasError || !snap.hasData || snap.data!.isEmpty) {
                 return _ErrorBox(height: 230, message: 'Failed to load featured');
@@ -295,112 +353,11 @@ class _HomeBody extends StatelessWidget {
               );
             },
           ),
-
           const SizedBox(height: 20),
-
-          // ── Category Chips
           _CategoryChips(selected: catIndex, onTap: onCatTap),
-
-          const SizedBox(height: 12),
-
-          // ── Country Button
-          _CountryButton(
-            selected: selectedCountry,
-            selectedGenre: selectedCountryGenre,
-            onTap: onCountryTap,
-            onGenreTap: onCountryGenreTap,
-          ),
-
           const SizedBox(height: 20),
-
-          // ── COUNTRY FILTER MODE
-          if (countryFuture != null) ...[
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Row(
-                children: [
-                  Text(
-                    _countries[selectedCountry] ?? selectedCountry ?? '',
-                    style: GoogleFonts.dmSans(
-                      color: C.cream, fontSize: 18, fontWeight: FontWeight.w700),
-                  ),
-                  if (selectedCountryGenre != null) ...[
-                    const SizedBox(width: 6),
-                    Text('·', style: GoogleFonts.dmSans(color: C.sub, fontSize: 18)),
-                    const SizedBox(width: 6),
-                    Text(selectedCountryGenre!, style: GoogleFonts.dmSans(
-                      color: C.rose, fontSize: 15, fontWeight: FontWeight.w600)),
-                  ] else ...[
-                    const SizedBox(width: 8),
-                    Text('Movies', style: GoogleFonts.dmSans(color: C.sub, fontSize: 14)),
-                  ],
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-            FutureBuilder<List<TmdbMovie>>(
-              future: countryFuture,
-              builder: (_, snap) {
-                if (snap.connectionState == ConnectionState.waiting) {
-                  return const SizedBox(
-                    height: 400,
-                    child: Center(child: CircularProgressIndicator(color: C.gold)),
-                  );
-                }
-                if (snap.hasError) {
-                  return _ErrorBox(height: 300, message: 'Failed to load');
-                }
-                if (!snap.hasData || snap.data!.isEmpty) {
-                  return _ErrorBox(height: 300, message: 'No movies found');
-                }
-                return _MovieGrid(movies: snap.data!.take(12).toList());
-              },
-            ),
-            const SizedBox(height: 32),
-          ] else
-
-          // ── GENRE FILTER MODE
-          if (genreFuture != null) ...[
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Text(
-                _categories[catIndex],
-                style: GoogleFonts.dmSans(
-                  color: C.cream,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            FutureBuilder<List<TmdbMovie>>(
-              future: genreFuture,
-              builder: (_, snap) {
-                if (snap.connectionState == ConnectionState.waiting) {
-                  return const SizedBox(
-                    height: 400,
-                    child: Center(child: CircularProgressIndicator(color: C.gold)),
-                  );
-                }
-                if (snap.hasError) {
-                  return _ErrorBox(height: 300, message: 'Failed to load genre');
-                }
-                if (!snap.hasData || snap.data!.isEmpty) {
-                  return _ErrorBox(height: 300, message: 'No movies found');
-                }
-                return _MovieGrid(movies: snap.data!.take(12).toList());
-              },
-            ),
-            const SizedBox(height: 32),
-          ] else ...[
-          // ── NORMAL MODE
-
-          // ── Filter Tabs
           _FilterTabs(selected: tabIndex, onTap: onTabTap),
-
           const SizedBox(height: 16),
-
-          // ── Movie Grid (filtered by tab)
           FutureBuilder<List<TmdbMovie>>(
             future: tabFuture,
             builder: (_, snap) {
@@ -414,21 +371,13 @@ class _HomeBody extends StatelessWidget {
               return _MovieGrid(movies: snap.data!.take(4).toList());
             },
           ),
-
           const SizedBox(height: 24),
-
-          // ── Top Rated Section
-          _SectionHeader(title: 'Top Rated ⭐', onSeeAll: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => SeeAllScreen(
-                  title: 'Top Rated ⭐',
-                  future: topRatedFuture,
-                ),
-              ),
-            );
-          }),
+          Builder(builder: (ctx) => _SectionHeader(
+            title: 'Top Rated ⭐',
+            onSeeAll: () => Navigator.push(ctx, MaterialPageRoute(
+              builder: (_) => _SeeAllScreen(title: 'Top Rated ⭐', future: topRatedFuture),
+            )),
+          )),
           const SizedBox(height: 12),
           FutureBuilder<List<TmdbMovie>>(
             future: topRatedFuture,
@@ -441,21 +390,13 @@ class _HomeBody extends StatelessWidget {
               return _HorizontalMovieList(movies: snap.data!.take(10).toList());
             },
           ),
-
           const SizedBox(height: 24),
-
-          // ── Trending Section
-          _SectionHeader(title: 'Trending 🔥', onSeeAll: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => SeeAllScreen(
-                  title: 'Trending 🔥',
-                  future: trendingFuture,
-                ),
-              ),
-            );
-          }),
+          Builder(builder: (ctx) => _SectionHeader(
+            title: 'Trending 🔥',
+            onSeeAll: () => Navigator.push(ctx, MaterialPageRoute(
+              builder: (_) => _SeeAllScreen(title: 'Trending 🔥', future: trendingFuture),
+            )),
+          )),
           const SizedBox(height: 12),
           FutureBuilder<List<TmdbMovie>>(
             future: trendingFuture,
@@ -468,9 +409,7 @@ class _HomeBody extends StatelessWidget {
               return _HorizontalMovieList(movies: snap.data!.take(10).toList());
             },
           ),
-
           const SizedBox(height: 32),
-          ], // end else (normal mode)
         ],
       ),
     );
@@ -531,8 +470,8 @@ class _SearchResults extends StatelessWidget {
         }
         if (!snap.hasData || snap.data!.isEmpty) {
           return Center(
-            child: Text('No results found', style: GoogleFonts.dmSans(color: C.sub, fontSize: 15)),
-          );
+            child: Text('No results found',
+              style: GoogleFonts.dmSans(color: C.sub, fontSize: 15)));
         }
         final movies = snap.data!;
         return ListView.builder(
@@ -576,17 +515,19 @@ class _SearchTile extends StatelessWidget {
                   Text(movie.title,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.dmSans(color: C.text, fontSize: 14, fontWeight: FontWeight.w700),
-                  ),
+                    style: GoogleFonts.dmSans(
+                      color: C.text, fontSize: 14, fontWeight: FontWeight.w700)),
                   const SizedBox(height: 4),
                   Row(
                     children: [
-                      Text(movie.year, style: GoogleFonts.dmSans(color: C.sub, fontSize: 12)),
+                      Text(movie.year,
+                        style: GoogleFonts.dmSans(color: C.sub, fontSize: 12)),
                       const SizedBox(width: 8),
                       const Icon(Icons.star_rounded, color: C.gold, size: 13),
                       const SizedBox(width: 3),
                       Text(movie.ratingRounded.toString(),
-                        style: GoogleFonts.dmSans(color: C.gold, fontSize: 12, fontWeight: FontWeight.w700)),
+                        style: GoogleFonts.dmSans(
+                          color: C.gold, fontSize: 12, fontWeight: FontWeight.w700)),
                     ],
                   ),
                   if (movie.overview.isNotEmpty) ...[
@@ -595,7 +536,7 @@ class _SearchTile extends StatelessWidget {
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: GoogleFonts.dmSans(color: C.sub, fontSize: 11)),
-                  ]
+                  ],
                 ],
               ),
             ),
@@ -632,9 +573,6 @@ void _openDetail(BuildContext context, TmdbMovie m) {
         genre: '',
         color: _movieColor(m),
         description: m.overview,
-        movieId: m.id,
-        posterUrl: m.posterUrl,
-        backdropUrl: m.backdropUrl,
       ),
     ),
   );
@@ -709,16 +647,24 @@ class _ErrorBox extends StatelessWidget {
 //  TOP BAR
 // ─────────────────────────────────────────────
 class _TopBar extends StatelessWidget {
-  const _TopBar({required this.onSearchTap});
+  const _TopBar({
+    required this.onSearchTap,
+    required this.selectedCountry,
+    required this.onCountryTap,
+  });
   final VoidCallback onSearchTap;
+  final String? selectedCountry;
+  final VoidCallback onCountryTap;
 
   @override
   Widget build(BuildContext context) {
+    final countryLabel = selectedCountry != null
+        ? _countries[selectedCountry]!
+        : '🌍 Country';
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
       child: Row(
         children: [
-          // Logo icon
           Container(
             width: 38, height: 38,
             decoration: BoxDecoration(
@@ -735,20 +681,35 @@ class _TopBar extends StatelessWidget {
             child: const Icon(Icons.movie_filter_rounded, color: Colors.white, size: 21),
           ),
           const SizedBox(width: 10),
-          Text(
-            'CineJoy',
+          Text('CineJoy',
             style: GoogleFonts.caveat(
-              fontSize: 28, fontWeight: FontWeight.w700, color: C.cream,
+              fontSize: 28, fontWeight: FontWeight.w700, color: C.cream)),
+          const Spacer(),
+          // Country filter button
+          GestureDetector(
+            onTap: onCountryTap,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: selectedCountry != null ? C.rose.withOpacity(0.2) : C.card,
+                borderRadius: BorderRadius.circular(11),
+                border: Border.all(
+                  color: selectedCountry != null
+                      ? C.rose
+                      : Colors.white.withOpacity(0.07),
+                ),
+              ),
+              child: Text(countryLabel,
+                style: GoogleFonts.dmSans(
+                  color: selectedCountry != null ? C.cream : C.sub,
+                  fontSize: 12,
+                  fontWeight: selectedCountry != null ? FontWeight.w700 : FontWeight.w400,
+                )),
             ),
           ),
-          const Spacer(),
-          // Search button
+          const SizedBox(width: 8),
           _IconBtn(icon: Icons.search_rounded, onTap: onSearchTap),
           const SizedBox(width: 8),
-          // Notification button
-          _IconBtn(icon: Icons.notifications_outlined, onTap: () {}),
-          const SizedBox(width: 8),
-          // Avatar
           Container(
             width: 38, height: 38,
             decoration: BoxDecoration(
@@ -823,7 +784,6 @@ class _FeaturedCarousel extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 12),
-        // Dots
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: List.generate(movies.length, (i) {
@@ -867,7 +827,6 @@ class _FeaturedCard extends StatelessWidget {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              // Backdrop
               if (movie.backdropUrl.isNotEmpty)
                 CachedNetworkImage(
                   imageUrl: movie.backdropUrl,
@@ -877,30 +836,22 @@ class _FeaturedCard extends StatelessWidget {
                 )
               else
                 Container(color: color),
-
-              // Gradient overlay
               Container(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.transparent,
-                      Colors.black.withOpacity(0.85),
-                    ],
+                    colors: [Colors.transparent, Colors.black.withOpacity(0.85)],
                     stops: const [0.4, 1.0],
                   ),
                 ),
               ),
-
-              // Info
               Positioned(
                 left: 16, right: 60, bottom: 14,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Rating badge
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(
@@ -912,34 +863,26 @@ class _FeaturedCard extends StatelessWidget {
                         children: [
                           const Icon(Icons.star_rounded, color: C.gold, size: 13),
                           const SizedBox(width: 4),
-                          Text(
-                            movie.ratingRounded.toString(),
+                          Text(movie.ratingRounded.toString(),
                             style: GoogleFonts.dmSans(
-                              color: C.cream, fontSize: 12, fontWeight: FontWeight.w700),
-                          ),
+                              color: C.cream, fontSize: 12, fontWeight: FontWeight.w700)),
                         ],
                       ),
                     ),
                     const SizedBox(height: 6),
-                    Text(
-                      movie.title,
+                    Text(movie.title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: GoogleFonts.dmSans(
                         color: Colors.white, fontSize: 20,
-                        fontWeight: FontWeight.w800, height: 1.1),
-                    ),
+                        fontWeight: FontWeight.w800, height: 1.1)),
                     const SizedBox(height: 3),
-                    Text(
-                      movie.year,
+                    Text(movie.year,
                       style: GoogleFonts.dmSans(
-                        color: Colors.white.withOpacity(0.65), fontSize: 12),
-                    ),
+                        color: Colors.white.withOpacity(0.65), fontSize: 12)),
                   ],
                 ),
               ),
-
-              // Bookmark
               Positioned(
                 top: 12, right: 12,
                 child: Container(
@@ -987,20 +930,17 @@ class _CategoryChips extends StatelessWidget {
                 color: active ? C.rose : C.card,
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
-                  color: active ? C.rose : Colors.white.withOpacity(0.07),
-                ),
+                  color: active ? C.rose : Colors.white.withOpacity(0.07)),
                 boxShadow: active
                     ? [BoxShadow(color: C.rose.withOpacity(0.35), blurRadius: 10, offset: const Offset(0, 4))]
                     : [],
               ),
-              child: Text(
-                _categories[i],
+              child: Text(_categories[i],
                 style: GoogleFonts.dmSans(
                   color: active ? Colors.white : C.sub,
                   fontSize: 13,
                   fontWeight: active ? FontWeight.w700 : FontWeight.w400,
-                ),
-              ),
+                )),
             ),
           );
         },
@@ -1009,454 +949,6 @@ class _CategoryChips extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────
-//  COUNTRY CHIPS
-// ─────────────────────────────────────────────
-// ─────────────────────────────────────────────
-//  COUNTRY BUTTON (opens bottom sheet)
-// ─────────────────────────────────────────────
-class _CountryButton extends StatelessWidget {
-  const _CountryButton({
-    required this.selected,
-    required this.selectedGenre,
-    required this.onTap,
-    required this.onGenreTap,
-  });
-  final String? selected;
-  final String? selectedGenre;
-  final ValueChanged<String?> onTap;
-  final ValueChanged<String?> onGenreTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final hasCountry = selected != null;
-    final countryLabel = hasCountry ? _countries[selected]! : '🌍 Country';
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Row(
-        children: [
-          // Country picker button
-          GestureDetector(
-            onTap: () => showModalBottomSheet(
-              context: context,
-              backgroundColor: Colors.transparent,
-              isScrollControlled: true,
-              builder: (_) => _CountrySheet(
-                selectedCountry: selected,
-                selectedGenre: selectedGenre,
-                onSelectCountry: (code) {
-                  Navigator.pop(context);
-                  onTap(code == selected ? null : code);
-                },
-                onSelectGenre: (g) {
-                  Navigator.pop(context);
-                  onGenreTap(g == selectedGenre ? null : g);
-                },
-                onClear: () {
-                  Navigator.pop(context);
-                  onTap(null);
-                },
-              ),
-            ),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 250),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
-              decoration: BoxDecoration(
-                color: hasCountry ? const Color(0xFF1A3A4A) : C.card,
-                borderRadius: BorderRadius.circular(22),
-                border: Border.all(
-                  color: hasCountry
-                      ? const Color(0xFF4FC3F7)
-                      : Colors.white.withOpacity(0.12),
-                  width: hasCountry ? 1.5 : 1,
-                ),
-                boxShadow: hasCountry
-                    ? [BoxShadow(
-                        color: const Color(0xFF4FC3F7).withOpacity(0.25),
-                        blurRadius: 10,
-                        offset: const Offset(0, 3),
-                      )]
-                    : [],
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    countryLabel,
-                    style: GoogleFonts.dmSans(
-                      color: hasCountry ? const Color(0xFF4FC3F7) : C.sub,
-                      fontSize: 13,
-                      fontWeight: hasCountry ? FontWeight.w700 : FontWeight.w500,
-                    ),
-                  ),
-                  if (selectedGenre != null) ...[
-                    Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 6),
-                      width: 1, height: 14,
-                      color: const Color(0xFF4FC3F7).withOpacity(0.4),
-                    ),
-                    Text(
-                      selectedGenre!,
-                      style: GoogleFonts.dmSans(
-                        color: C.rose,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                  const SizedBox(width: 6),
-                  Icon(
-                    Icons.keyboard_arrow_down_rounded,
-                    color: hasCountry ? const Color(0xFF4FC3F7) : C.sub,
-                    size: 18,
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          // Clear ×
-          if (hasCountry) ...[
-            const SizedBox(width: 8),
-            GestureDetector(
-              onTap: () => onTap(null),
-              child: Container(
-                width: 30, height: 30,
-                decoration: BoxDecoration(
-                  color: C.card,
-                  borderRadius: BorderRadius.circular(15),
-                  border: Border.all(color: Colors.white.withOpacity(0.1)),
-                ),
-                child: const Icon(Icons.close_rounded, color: Color(0xFF888888), size: 16),
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────
-//  COUNTRY BOTTOM SHEET  (country + genre)
-// ─────────────────────────────────────────────
-class _CountrySheet extends StatefulWidget {
-  const _CountrySheet({
-    required this.selectedCountry,
-    required this.selectedGenre,
-    required this.onSelectCountry,
-    required this.onSelectGenre,
-    required this.onClear,
-  });
-  final String? selectedCountry;
-  final String? selectedGenre;
-  final ValueChanged<String> onSelectCountry;
-  final ValueChanged<String?> onSelectGenre;
-  final VoidCallback onClear;
-
-  @override
-  State<_CountrySheet> createState() => _CountrySheetState();
-}
-
-class _CountrySheetState extends State<_CountrySheet> {
-  late String? _country;
-  late String? _genre;
-
-  @override
-  void initState() {
-    super.initState();
-    _country = widget.selectedCountry;
-    _genre   = widget.selectedGenre;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final countryEntries = _countries.entries.toList();
-    final genres = tmdbGenreIds.keys.toList(); // All, Action, Comedy...
-    final countryChosen = _country != null;
-
-    return Container(
-      decoration: const BoxDecoration(
-        color: Color(0xFF141414),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Handle
-            Center(
-              child: Container(
-                margin: const EdgeInsets.symmetric(vertical: 14),
-                width: 40, height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.15),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-
-            // ── STEP 1: Country
-            Row(
-              children: [
-                Text('🌍  Country',
-                  style: GoogleFonts.dmSans(
-                    color: const Color(0xFFFBE4D8),
-                    fontSize: 16, fontWeight: FontWeight.w700)),
-                const Spacer(),
-                if (_country != null)
-                  GestureDetector(
-                    onTap: () { widget.onClear(); },
-                    child: Text('Clear all',
-                      style: GoogleFonts.dmSans(
-                        color: const Color(0xFF4FC3F7),
-                        fontSize: 12, fontWeight: FontWeight.w600)),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 12),
-
-            GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 3,
-                mainAxisSpacing: 8,
-                crossAxisSpacing: 8,
-                childAspectRatio: 2.5,
-              ),
-              itemCount: countryEntries.length,
-              itemBuilder: (_, i) {
-                final code  = countryEntries[i].key;
-                final label = countryEntries[i].value;
-                final active = _country == code;
-                return GestureDetector(
-                  onTap: () {
-                    setState(() {
-                      _country = active ? null : code;
-                      _genre   = null; // reset genre on country change
-                    });
-                    if (!active) {
-                      widget.onSelectCountry(code);
-                    } else {
-                      widget.onClear();
-                    }
-                  },
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    decoration: BoxDecoration(
-                      color: active ? const Color(0xFF1A3A4A) : const Color(0xFF1E1E1E),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: active ? const Color(0xFF4FC3F7) : Colors.white.withOpacity(0.07),
-                        width: active ? 1.5 : 1,
-                      ),
-                    ),
-                    child: Center(
-                      child: Text(label,
-                        textAlign: TextAlign.center,
-                        style: GoogleFonts.dmSans(
-                          color: active ? const Color(0xFF4FC3F7) : const Color(0xFFCCCCCC),
-                          fontSize: 12,
-                          fontWeight: active ? FontWeight.w700 : FontWeight.w400,
-                        ),
-                      ),
-                    ),
-                  ),
-                );
-              },
-            ),
-
-            // ── STEP 2: Genre (appears only after country chosen)
-            AnimatedSize(
-              duration: const Duration(milliseconds: 300),
-              curve: Curves.easeOut,
-              child: countryChosen
-                  ? Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const SizedBox(height: 24),
-                        Row(
-                          children: [
-                            Text('🎬  Genre',
-                              style: GoogleFonts.dmSans(
-                                color: const Color(0xFFFBE4D8),
-                                fontSize: 16, fontWeight: FontWeight.w700)),
-                            const SizedBox(width: 8),
-                            Text('(optional)',
-                              style: GoogleFonts.dmSans(color: C.sub, fontSize: 12)),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: [
-                            // "All" chip
-                            _GenreChip(
-                              label: '✨ All',
-                              active: _genre == null,
-                              onTap: () {
-                                setState(() => _genre = null);
-                                widget.onSelectGenre(null);
-                              },
-                            ),
-                            ...genres.map((g) => _GenreChip(
-                              label: g,
-                              active: _genre == g,
-                              onTap: () {
-                                setState(() => _genre = g);
-                                widget.onSelectGenre(g);
-                              },
-                            )),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                      ],
-                    )
-                  : const SizedBox.shrink(),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────
-//  GENRE CHIP (inside country sheet)
-// ─────────────────────────────────────────────
-class _GenreChip extends StatelessWidget {
-  const _GenreChip({required this.label, required this.active, required this.onTap});
-  final String label;
-  final bool active;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        decoration: BoxDecoration(
-          color: active ? C.rose.withOpacity(0.15) : const Color(0xFF1E1E1E),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: active ? C.rose : Colors.white.withOpacity(0.07),
-            width: active ? 1.5 : 1,
-          ),
-        ),
-        child: Text(
-          label,
-          style: GoogleFonts.dmSans(
-            color: active ? C.rose : const Color(0xFFCCCCCC),
-            fontSize: 12,
-            fontWeight: active ? FontWeight.w700 : FontWeight.w400,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-  @override
-  Widget build(BuildContext context) {
-    final hasSelection = selected != null;
-    final label = hasSelection ? _countries[selected]! : '🌍 Country';
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Row(
-        children: [
-          // Main country picker button
-          GestureDetector(
-            onTap: () => showModalBottomSheet(
-              context: context,
-              backgroundColor: Colors.transparent,
-              isScrollControlled: true,
-              builder: (_) => _CountrySheet(
-                selected: selected,
-                onSelect: (code) {
-                  Navigator.pop(context);
-                  onTap(code == selected ? null : code);
-                },
-              ),
-            ),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 250),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
-              decoration: BoxDecoration(
-                color: hasSelection ? const Color(0xFF1A3A4A) : C.card,
-                borderRadius: BorderRadius.circular(22),
-                border: Border.all(
-                  color: hasSelection
-                      ? const Color(0xFF4FC3F7)
-                      : Colors.white.withOpacity(0.12),
-                  width: hasSelection ? 1.5 : 1,
-                ),
-                boxShadow: hasSelection
-                    ? [BoxShadow(
-                        color: const Color(0xFF4FC3F7).withOpacity(0.25),
-                        blurRadius: 10,
-                        offset: const Offset(0, 3),
-                      )]
-                    : [],
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    label,
-                    style: GoogleFonts.dmSans(
-                      color: hasSelection
-                          ? const Color(0xFF4FC3F7)
-                          : C.sub,
-                      fontSize: 13,
-                      fontWeight: hasSelection
-                          ? FontWeight.w700
-                          : FontWeight.w500,
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  Icon(
-                    Icons.keyboard_arrow_down_rounded,
-                    color: hasSelection
-                        ? const Color(0xFF4FC3F7)
-                        : C.sub,
-                    size: 18,
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          // Clear button — only when a country is selected
-          if (hasSelection) ...[
-            const SizedBox(width: 8),
-            GestureDetector(
-              onTap: () => onTap(null),
-              child: Container(
-                width: 30,
-                height: 30,
-                decoration: BoxDecoration(
-                  color: C.card,
-                  borderRadius: BorderRadius.circular(15),
-                  border: Border.all(color: Colors.white.withOpacity(0.1)),
-                ),
-                child: const Icon(Icons.close_rounded,
-                    color: Color(0xFF888888), size: 16),
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
 // ─────────────────────────────────────────────
 //  FILTER TABS
 // ─────────────────────────────────────────────
@@ -1467,25 +959,27 @@ class _FilterTabs extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Row(
-        children: List.generate(_tabLabels.length, (i) {
+    return SizedBox(
+      height: 36,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        itemCount: _tabLabels.length,
+        itemBuilder: (_, i) {
           final active = i == selected;
           return GestureDetector(
             onTap: () => onTap(i),
             child: Padding(
               padding: const EdgeInsets.only(right: 22),
               child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    _tabLabels[i],
+                  Text(_tabLabels[i],
                     style: GoogleFonts.dmSans(
                       color: active ? C.cream : C.sub,
                       fontSize: 14,
                       fontWeight: active ? FontWeight.w700 : FontWeight.w400,
-                    ),
-                  ),
+                    )),
                   const SizedBox(height: 4),
                   AnimatedContainer(
                     duration: const Duration(milliseconds: 250),
@@ -1500,7 +994,7 @@ class _FilterTabs extends StatelessWidget {
               ),
             ),
           );
-        }),
+        },
       ),
     );
   }
@@ -1540,7 +1034,6 @@ class _MovieCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = _movieColor(movie);
-    // Alternate HD/SD badge
     final isHD = movie.id % 3 != 0;
     return GestureDetector(
       onTap: () => _openDetail(context, movie),
@@ -1557,10 +1050,7 @@ class _MovieCard extends StatelessWidget {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              // Poster
               _Poster(url: movie.posterUrl, color: color),
-
-              // Bottom gradient + info
               Positioned(
                 left: 0, right: 0, bottom: 0,
                 child: Container(
@@ -1576,13 +1066,11 @@ class _MovieCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(
-                        movie.title,
+                      Text(movie.title,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: GoogleFonts.dmSans(
-                          color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700),
-                      ),
+                          color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700)),
                       const SizedBox(height: 3),
                       Row(
                         children: [
@@ -1591,19 +1079,15 @@ class _MovieCard extends StatelessWidget {
                           const SizedBox(width: 6),
                           const Icon(Icons.star_rounded, color: C.gold, size: 11),
                           const SizedBox(width: 2),
-                          Text(
-                            movie.ratingRounded.toString(),
+                          Text(movie.ratingRounded.toString(),
                             style: GoogleFonts.dmSans(
-                              color: C.gold, fontSize: 10, fontWeight: FontWeight.w700),
-                          ),
+                              color: C.gold, fontSize: 10, fontWeight: FontWeight.w700)),
                         ],
                       ),
                     ],
                   ),
                 ),
               ),
-
-              // HD / SD badge
               Positioned(
                 top: 8, left: 8,
                 child: Container(
@@ -1612,15 +1096,11 @@ class _MovieCard extends StatelessWidget {
                     color: isHD ? C.hdGreen : C.sdOrange,
                     borderRadius: BorderRadius.circular(5),
                   ),
-                  child: Text(
-                    isHD ? 'HD' : 'SD',
+                  child: Text(isHD ? 'HD' : 'SD',
                     style: GoogleFonts.spaceMono(
-                      color: Colors.white, fontSize: 8, fontWeight: FontWeight.w700),
-                  ),
+                      color: Colors.white, fontSize: 8, fontWeight: FontWeight.w700)),
                 ),
               ),
-
-              // Bookmark
               Positioned(
                 top: 6, right: 6,
                 child: Container(
@@ -1654,19 +1134,15 @@ class _SectionHeader extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Row(
         children: [
-          Text(
-            title,
+          Text(title,
             style: GoogleFonts.dmSans(
-              color: C.cream, fontSize: 18, fontWeight: FontWeight.w700),
-          ),
+              color: C.cream, fontSize: 18, fontWeight: FontWeight.w700)),
           const Spacer(),
           GestureDetector(
             onTap: onSeeAll,
-            child: Text(
-              'See all',
+            child: Text('See all',
               style: GoogleFonts.dmSans(
-                color: C.rose, fontSize: 13, fontWeight: FontWeight.w600),
-            ),
+                color: C.rose, fontSize: 13, fontWeight: FontWeight.w600)),
           ),
         ],
       ),
@@ -1787,7 +1263,6 @@ class _BottomNav extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: List.generate(_items.length, (i) {
-          // Center search button (bigger, colored)
           if (i == 1) {
             return GestureDetector(
               onTap: () => onTap(i),
@@ -1826,6 +1301,59 @@ class _BottomNav extends StatelessWidget {
             ),
           );
         }),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────
+//  SEE ALL SCREEN
+// ─────────────────────────────────────────────
+class _SeeAllScreen extends StatelessWidget {
+  const _SeeAllScreen({required this.title, required this.future});
+  final String title;
+  final Future<List<TmdbMovie>> future;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: C.bg,
+      appBar: AppBar(
+        backgroundColor: C.card,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: C.cream, size: 20),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text(title,
+          style: GoogleFonts.dmSans(
+            color: C.cream, fontSize: 18, fontWeight: FontWeight.w700)),
+        centerTitle: false,
+      ),
+      body: FutureBuilder<List<TmdbMovie>>(
+        future: future,
+        builder: (_, snap) {
+          if (snap.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator(color: C.gold));
+          }
+          if (!snap.hasData || snap.data!.isEmpty) {
+            return Center(
+              child: Text('No movies found',
+                style: GoogleFonts.dmSans(color: C.sub, fontSize: 15)));
+          }
+          final movies = snap.data!;
+          return GridView.builder(
+            padding: const EdgeInsets.all(16),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              childAspectRatio: 0.65,
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 12,
+            ),
+            itemCount: movies.length,
+            itemBuilder: (_, i) => _MovieCard(movie: movies[i]),
+          );
+        },
       ),
     );
   }

@@ -13,6 +13,7 @@ class TmdbMovie {
   final double rating;
   final String overview;
   final List<int> genreIds;
+  final String originalLanguage;
 
   TmdbMovie({
     required this.id,
@@ -23,6 +24,7 @@ class TmdbMovie {
     required this.rating,
     required this.overview,
     required this.genreIds,
+    this.originalLanguage = '',
   });
 
   factory TmdbMovie.fromJson(Map<String, dynamic> json) {
@@ -35,6 +37,7 @@ class TmdbMovie {
       rating: (json['vote_average'] ?? 0.0).toDouble(),
       overview: json['overview'] ?? '',
       genreIds: List<int>.from(json['genre_ids'] ?? []),
+      originalLanguage: json['original_language'] ?? '',
     );
   }
 
@@ -130,42 +133,125 @@ class TmdbImage {
 }
 
 // ─────────────────────────────────────────────
+//  COUNTRY CONFIG
+// ─────────────────────────────────────────────
+class _CountryConfig {
+  final String language;
+  final String region;
+  const _CountryConfig({required this.language, required this.region});
+}
+
+const _countryConfigs = <String, _CountryConfig>{
+  'MA': _CountryConfig(language: 'ar', region: 'MA'),
+  'TR': _CountryConfig(language: 'tr', region: 'TR'),
+  'IN': _CountryConfig(language: 'hi', region: 'IN'),
+  'KR': _CountryConfig(language: 'ko', region: 'KR'),
+  'JP': _CountryConfig(language: 'ja', region: 'JP'),
+};
+
+// ─────────────────────────────────────────────
 //  TMDB SERVICE
 // ─────────────────────────────────────────────
 class TMDBService {
   static const String _apiKey = '6576f7c2be57854246647e8d7dd6bf41';
   static const String _base   = 'https://api.themoviedb.org/3';
 
-  Future<List<TmdbMovie>> fetchByCountryAndGenre(String countryCode, int genreId) async {
-    final url =
-        '$_base/discover/movie?api_key=$_apiKey&language=en-US&sort_by=popularity.desc'
-        '&with_origin_country=$countryCode&with_genres=$genreId&page=1';
-    final response = await http.get(Uri.parse(url));
-    if (response.statusCode == 200) {
-      final data = json.decode(response.body);
-      final List results = data['results'];
-      return results.map((e) => TmdbMovie.fromJson(e)).toList();
-    } else {
-      throw Exception('TMDB error: ${response.statusCode}');
-    }
-  }
-
+  // ── Fetch movies by country using 3 strategies combined
   Future<List<TmdbMovie>> fetchByCountry(String countryCode) async {
-    final url =
-        '$_base/discover/movie?api_key=$_apiKey&language=en-US&sort_by=popularity.desc&with_origin_country=$countryCode&page=1';
-    final response = await http.get(Uri.parse(url));
-    if (response.statusCode == 200) {
-      final data = json.decode(response.body);
-      final List results = data['results'];
-      return results.map((e) => TmdbMovie.fromJson(e)).toList();
-    } else {
-      throw Exception('TMDB error: ${response.statusCode}');
+    final config = _countryConfigs[countryCode];
+
+    // Strategy 1: origin country
+    final url1 = '$_base/discover/movie?api_key=$_apiKey&language=en-US'
+        '&sort_by=popularity.desc&with_origin_country=$countryCode&page=1';
+
+    // Strategy 2: production country
+    final url2 = '$_base/discover/movie?api_key=$_apiKey&language=en-US'
+        '&sort_by=popularity.desc&with_production_countries=$countryCode&page=1';
+
+    // Strategy 3: original language
+    final url3 = config != null
+        ? '$_base/discover/movie?api_key=$_apiKey&language=en-US'
+          '&sort_by=popularity.desc&with_original_language=${config.language}&page=1'
+        : null;
+
+    final futures = [
+      http.get(Uri.parse(url1)),
+      http.get(Uri.parse(url2)),
+      if (url3 != null) http.get(Uri.parse(url3)),
+    ];
+
+    final responses = await Future.wait(futures);
+    final seen = <int>{};
+    final movies = <TmdbMovie>[];
+
+    for (final response in responses) {
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final List results = data['results'];
+        for (final e in results) {
+          final movie = TmdbMovie.fromJson(e);
+          if (seen.add(movie.id)) {
+            movies.add(movie);
+          }
+        }
+      }
     }
+
+    // For Morocco: prioritize Arabic/French language films
+    if (countryCode == 'MA' && movies.isNotEmpty) {
+      movies.sort((a, b) {
+        final aScore = (a.originalLanguage == 'ar' ? 2 : a.originalLanguage == 'fr' ? 1 : 0);
+        final bScore = (b.originalLanguage == 'ar' ? 2 : b.originalLanguage == 'fr' ? 1 : 0);
+        if (aScore != bScore) return bScore.compareTo(aScore);
+        return b.rating.compareTo(a.rating);
+      });
+      return movies;
+    }
+
+    movies.sort((a, b) => b.rating.compareTo(a.rating));
+    return movies;
   }
 
+  // ── Fetch by country + genre
+  Future<List<TmdbMovie>> fetchByCountryAndGenre(String countryCode, int genreId) async {
+    final config = _countryConfigs[countryCode];
+
+    final url1 = '$_base/discover/movie?api_key=$_apiKey&language=en-US'
+        '&sort_by=popularity.desc&with_origin_country=$countryCode&with_genres=$genreId&page=1';
+
+    final url2 = config != null
+        ? '$_base/discover/movie?api_key=$_apiKey&language=en-US'
+          '&sort_by=popularity.desc&with_original_language=${config.language}&with_genres=$genreId&page=1'
+        : null;
+
+    final futures = [
+      http.get(Uri.parse(url1)),
+      if (url2 != null) http.get(Uri.parse(url2)),
+    ];
+
+    final responses = await Future.wait(futures);
+    final seen = <int>{};
+    final movies = <TmdbMovie>[];
+
+    for (final response in responses) {
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final List results = data['results'];
+        for (final e in results) {
+          final movie = TmdbMovie.fromJson(e);
+          if (seen.add(movie.id)) movies.add(movie);
+        }
+      }
+    }
+
+    movies.sort((a, b) => b.rating.compareTo(a.rating));
+    return movies;
+  }
+
+  // ── Fetch by genre only
   Future<List<TmdbMovie>> fetchByGenre(int genreId) async {
-    final url =
-        '$_base/discover/movie?api_key=$_apiKey&language=en-US&sort_by=popularity.desc&with_genres=$genreId&page=1';
+    final url = '$_base/discover/movie?api_key=$_apiKey&language=en-US'
+        '&sort_by=popularity.desc&with_genres=$genreId&page=1';
     final response = await http.get(Uri.parse(url));
     if (response.statusCode == 200) {
       final data = json.decode(response.body);
@@ -182,7 +268,8 @@ class TMDBService {
   Future<List<TmdbMovie>> fetchTrending()   => _fetch('trending/movie/week');
 
   Future<List<TmdbMovie>> searchMovies(String query) async {
-    final url = '$_base/search/movie?api_key=$_apiKey&language=en-US&query=${Uri.encodeComponent(query)}&page=1';
+    final url = '$_base/search/movie?api_key=$_apiKey&language=en-US'
+        '&query=${Uri.encodeComponent(query)}&page=1';
     final response = await http.get(Uri.parse(url));
     if (response.statusCode == 200) {
       final data = json.decode(response.body);
@@ -193,34 +280,29 @@ class TMDBService {
     }
   }
 
-  /// Fetch full movie detail: runtime, genres, cast, backdrops, trailer
   Future<TmdbMovieDetail> fetchMovieDetail(int movieId) async {
-    final detailUrl =
-        '$_base/movie/$movieId?api_key=$_apiKey&language=en-US&append_to_response=credits,images,videos';
+    final detailUrl = '$_base/movie/$movieId?api_key=$_apiKey&language=en-US'
+        '&append_to_response=credits,images,videos';
     final response = await http.get(Uri.parse(detailUrl));
     if (response.statusCode != 200) {
       throw Exception('TMDB detail error: ${response.statusCode}');
     }
     final data = json.decode(response.body);
 
-    // Genres
     final genres = (data['genres'] as List? ?? [])
         .map((g) => g['name'] as String)
         .toList();
 
-    // Cast (top 10)
     final castList = (data['credits']?['cast'] as List? ?? [])
         .take(10)
         .map((c) => TmdbCastMember.fromJson(c))
         .toList();
 
-    // Backdrops (top 5, no language filter)
     final backdrops = ((data['images']?['backdrops'] as List?) ?? [])
         .take(5)
         .map((b) => TmdbImage.fromJson(b))
         .toList();
 
-    // Trailer
     String? trailerKey;
     final videos = (data['videos']?['results'] as List? ?? []);
     final trailer = videos.firstWhere(

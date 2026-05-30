@@ -137,7 +137,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
           onDone: () => Navigator.of(context).pushReplacement(
             PageRouteBuilder(
               transitionDuration: const Duration(milliseconds: 600),
-              pageBuilder: (_, __, ___) => const HomeScreen(),
+              pageBuilder: (_, __, ___) => HomeScreen(),
               transitionsBuilder: (_, anim, __, child) =>
                   FadeTransition(opacity: anim, child: child),
             ),
