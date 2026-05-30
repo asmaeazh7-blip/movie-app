@@ -136,6 +136,46 @@ class TMDBService {
   static const String _apiKey = '6576f7c2be57854246647e8d7dd6bf41';
   static const String _base   = 'https://api.themoviedb.org/3';
 
+  Future<List<TmdbMovie>> fetchByCountryAndGenre(String countryCode, int genreId) async {
+    final url =
+        '$_base/discover/movie?api_key=$_apiKey&language=en-US&sort_by=popularity.desc'
+        '&with_origin_country=$countryCode&with_genres=$genreId&page=1';
+    final response = await http.get(Uri.parse(url));
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      final List results = data['results'];
+      return results.map((e) => TmdbMovie.fromJson(e)).toList();
+    } else {
+      throw Exception('TMDB error: ${response.statusCode}');
+    }
+  }
+
+  Future<List<TmdbMovie>> fetchByCountry(String countryCode) async {
+    final url =
+        '$_base/discover/movie?api_key=$_apiKey&language=en-US&sort_by=popularity.desc&with_origin_country=$countryCode&page=1';
+    final response = await http.get(Uri.parse(url));
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      final List results = data['results'];
+      return results.map((e) => TmdbMovie.fromJson(e)).toList();
+    } else {
+      throw Exception('TMDB error: ${response.statusCode}');
+    }
+  }
+
+  Future<List<TmdbMovie>> fetchByGenre(int genreId) async {
+    final url =
+        '$_base/discover/movie?api_key=$_apiKey&language=en-US&sort_by=popularity.desc&with_genres=$genreId&page=1';
+    final response = await http.get(Uri.parse(url));
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      final List results = data['results'];
+      return results.map((e) => TmdbMovie.fromJson(e)).toList();
+    } else {
+      throw Exception('TMDB error: ${response.statusCode}');
+    }
+  }
+
   Future<List<TmdbMovie>> fetchPopular()    => _fetch('movie/popular');
   Future<List<TmdbMovie>> fetchTopRated()   => _fetch('movie/top_rated');
   Future<List<TmdbMovie>> fetchNowPlaying() => _fetch('movie/now_playing');
@@ -217,3 +257,17 @@ class TMDBService {
     }
   }
 }
+
+// ─────────────────────────────────────────────
+//  TMDB GENRE IDs
+// ─────────────────────────────────────────────
+const tmdbGenreIds = {
+  'Action':    28,
+  'Comedy':    35,
+  'Drama':     18,
+  'Romance':   10749,
+  'Sci-Fi':    878,
+  'Horror':    27,
+  'Fantasy':   14,
+  'Adventure': 12,
+};
