@@ -115,6 +115,7 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen>
       context,
       MaterialPageRoute(
         builder: (_) => WatchScreen(
+          seriesId: widget.seriesId,
           seriesName: widget.name,
           episodeName: episode.name,
           episodeNumber: episode.episodeNumber,

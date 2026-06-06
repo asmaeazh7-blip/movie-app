@@ -10,12 +10,14 @@ class WatchScreen extends StatefulWidget {
     required this.episodeName,
     required this.episodeNumber,
     required this.seasonNumber,
+    required this.seriesId,
   });
 
   final String seriesName;
   final String episodeName;
   final int episodeNumber;
   final int seasonNumber;
+  final int seriesId;
 
   @override
   State<WatchScreen> createState() => _WatchScreenState();
@@ -31,20 +33,16 @@ class _WatchScreenState extends State<WatchScreen> {
   static const _accent = Color(0xFFE8435A);
   static const _card2  = Color(0xFF222222);
   static const _sub    = Color(0xFF888888);
-  static const _wine   = Color(0xFF662549);
 
-  String get _searchUrl {
-    final ep = widget.episodeNumber.toString().padLeft(2, '0');
-    final q  = Uri.encodeQueryComponent(
-      '${widget.seriesName} الحلقة $ep الموسم ${widget.seasonNumber}',
-    );
-    return 'https://wecima.cx/?s=$q';
-  }
+  // ✅ vidsrc.to بدل vidsrc.me (الي ميّت)
+  String get _directUrl =>
+      'https://vidsrc.to/embed/tv/${widget.seriesId}'
+      '/${widget.seasonNumber}/${widget.episodeNumber}';
 
   final _settings = InAppWebViewSettings(
     javaScriptEnabled: true,
-    mediaPlaybackRequiresUserGesture: false,   // autoplay video
-    allowsInlineMediaPlayback: true,           // inline (not fullscreen-forced)
+    mediaPlaybackRequiresUserGesture: false,
+    allowsInlineMediaPlayback: true,
     useWideViewPort: true,
     loadWithOverviewMode: true,
     mixedContentMode: MixedContentMode.MIXED_CONTENT_ALWAYS_ALLOW,
@@ -121,9 +119,8 @@ class _WatchScreenState extends State<WatchScreen> {
                             overflow: TextOverflow.ellipsis,
                           ),
                           Text(
-                            'E${widget.episodeNumber.toString().padLeft(2, '0')} — ${widget.episodeName}',
-                            style: GoogleFonts.spaceMono(
-                                color: _sub, fontSize: 10),
+                            'S${widget.seasonNumber} E${widget.episodeNumber.toString().padLeft(2, '0')} — ${widget.episodeName}',
+                            style: GoogleFonts.spaceMono(color: _sub, fontSize: 10),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -162,7 +159,7 @@ class _WatchScreenState extends State<WatchScreen> {
             Expanded(
               child: InAppWebView(
                 initialUrlRequest: URLRequest(
-                  url: WebUri(_searchUrl),
+                  url: WebUri(_directUrl),
                 ),
                 initialSettings: _settings,
                 onWebViewCreated: (c) => _webViewController = c,
@@ -172,7 +169,6 @@ class _WatchScreenState extends State<WatchScreen> {
                     setState(() => _isLoading = false),
                 onProgressChanged: (_, p) =>
                     setState(() => _progress = p),
-                // Handle new windows / popups inline
                 onCreateWindow: (c, req) async {
                   _webViewController?.loadUrl(
                     urlRequest: req.request,
