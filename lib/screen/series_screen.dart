@@ -34,6 +34,10 @@ const _seriesCountries = <String, String>{
   'IN': '🇮🇳 India',
   'MA': '🇲🇦 Morocco',
   'JP': '🇯🇵 Japan',
+  'ES': '🇪🇸 Spain',
+  'FR': '🇫🇷 France',
+  'IT': '🇮🇹 Italy',
+  'US': '🇺🇸 USA',
 };
 
 // ─────────────────────────────────────────────
@@ -115,6 +119,7 @@ class _SeriesScreenState extends State<SeriesScreen> {
     showModalBottomSheet(
       context: context,
       backgroundColor: SRC.card,
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -720,7 +725,7 @@ class _CountrySheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SafeArea(
-      child: Padding(
+      child: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -753,6 +758,7 @@ class _CountrySheet extends StatelessWidget {
                 ),
               ),
             ),
+            const SizedBox(height: 16),
           ],
         ),
       ),

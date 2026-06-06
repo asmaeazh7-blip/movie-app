@@ -31,7 +31,6 @@ class SplashScreen extends StatefulWidget {
 
 class _SplashScreenState extends State<SplashScreen>
     with TickerProviderStateMixin {
-  // One controller per falling letter + scene
   late final AnimationController _sceneCtrl;
   late final AnimationController _eCtrl;
   late final AnimationController _jCtrl;
@@ -39,31 +38,25 @@ class _SplashScreenState extends State<SplashScreen>
   late final AnimationController _yCtrl;
   late final AnimationController _flickerCtrl;
 
-  // Scene (TV + CIN) fade-in
   late final Animation<double> _sceneOpacity;
   late final Animation<Offset> _sceneSlide;
 
-  // E letter
   late final Animation<double> _eOpacity;
   late final Animation<double> _eRotation;
   late final Animation<Offset> _eSlide;
 
-  // J letter
   late final Animation<double> _jOpacity;
   late final Animation<double> _jRotation;
   late final Animation<Offset> _jSlide;
 
-  // O letter
   late final Animation<double> _oOpacity;
   late final Animation<double> _oRotation;
   late final Animation<Offset> _oSlide;
 
-  // Y letter
   late final Animation<double> _yOpacity;
   late final Animation<double> _yRotation;
   late final Animation<Offset> _ySlide;
 
-  // Flicker
   late final Animation<double> _flickerOpacity;
 
   @override
@@ -72,14 +65,12 @@ class _SplashScreenState extends State<SplashScreen>
     const curve = Cubic(0.15, 1.0, 0.3, 1.0);
     const dur = Duration(milliseconds: 1100);
 
-    // ── Scene ──
     _sceneCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 900));
     _sceneOpacity = CurvedAnimation(parent: _sceneCtrl, curve: Curves.easeOut);
     _sceneSlide = Tween<Offset>(begin: const Offset(0, 0.04), end: Offset.zero)
         .animate(CurvedAnimation(parent: _sceneCtrl, curve: Curves.easeOut));
     _sceneCtrl.forward();
 
-    // ── E (delay 0.3s) ──
     _eCtrl = AnimationController(vsync: this, duration: dur);
     _eOpacity = TweenSequence([
       TweenSequenceItem(tween: ConstantTween(0.0), weight: 10),
@@ -98,7 +89,6 @@ class _SplashScreenState extends State<SplashScreen>
     ]).animate(CurvedAnimation(parent: _eCtrl, curve: curve));
     Future.delayed(const Duration(milliseconds: 300), () { if (mounted) _eCtrl.forward(); });
 
-    // ── J (delay 1.6s) ──
     _jCtrl = AnimationController(vsync: this, duration: dur);
     _jOpacity = TweenSequence([
       TweenSequenceItem(tween: ConstantTween(0.0), weight: 10),
@@ -117,7 +107,6 @@ class _SplashScreenState extends State<SplashScreen>
     ]).animate(CurvedAnimation(parent: _jCtrl, curve: curve));
     Future.delayed(const Duration(milliseconds: 1600), () { if (mounted) _jCtrl.forward(); });
 
-    // ── O (delay 2.9s) ──
     _oCtrl = AnimationController(vsync: this, duration: dur);
     _oOpacity = TweenSequence([
       TweenSequenceItem(tween: ConstantTween(0.0), weight: 10),
@@ -136,7 +125,6 @@ class _SplashScreenState extends State<SplashScreen>
     ]).animate(CurvedAnimation(parent: _oCtrl, curve: curve));
     Future.delayed(const Duration(milliseconds: 2900), () { if (mounted) _oCtrl.forward(); });
 
-    // ── Y (delay 4.2s) ──
     _yCtrl = AnimationController(vsync: this, duration: dur);
     _yOpacity = TweenSequence([
       TweenSequenceItem(tween: ConstantTween(0.0), weight: 10),
@@ -171,7 +159,6 @@ class _SplashScreenState extends State<SplashScreen>
       }
     });
 
-    // ── Flicker (looping, 8s) ──
     _flickerCtrl = AnimationController(vsync: this, duration: const Duration(seconds: 8))
       ..repeat();
     _flickerOpacity = TweenSequence([
@@ -199,7 +186,6 @@ class _SplashScreenState extends State<SplashScreen>
       backgroundColor: const Color(0xFF3C0A2B),
       body: Stack(
         children: [
-          // ── Vignette ──
           Positioned.fill(
             child: IgnorePointer(
               child: Container(
@@ -215,7 +201,6 @@ class _SplashScreenState extends State<SplashScreen>
             ),
           ),
 
-          // ── Flicker overlay ──
           AnimatedBuilder(
             animation: _flickerCtrl,
             builder: (_, __) => Positioned.fill(
@@ -228,13 +213,11 @@ class _SplashScreenState extends State<SplashScreen>
             ),
           ),
 
-          // ── Main content: scene + fallen letters side by side ──
           Center(
             child: Row(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                // Left: TV scene (CIN + TV + legs)
                 FadeTransition(
                   opacity: _sceneOpacity,
                   child: SlideTransition(
@@ -245,13 +228,11 @@ class _SplashScreenState extends State<SplashScreen>
 
                 const SizedBox(width: 8),
 
-                // Right: fallen letters column
                 SizedBox(
                   width: 90,
                   height: 440,
                   child: Stack(
                     children: [
-                      // E — upper right, tilted
                       Positioned(
                         top: 20,
                         right: 0,
@@ -264,7 +245,6 @@ class _SplashScreenState extends State<SplashScreen>
                           transformOrigin: Alignment.bottomRight,
                         ),
                       ),
-                      // J — mid, upside-down
                       Positioned(
                         top: 160,
                         right: 4,
@@ -276,7 +256,6 @@ class _SplashScreenState extends State<SplashScreen>
                           slideAnim: _jSlide,
                         ),
                       ),
-                      // O — lower mid
                       Positioned(
                         top: 270,
                         right: 6,
@@ -288,7 +267,6 @@ class _SplashScreenState extends State<SplashScreen>
                           slideAnim: _oSlide,
                         ),
                       ),
-                      // Y — bottom
                       Positioned(
                         top: 370,
                         right: 2,
@@ -329,8 +307,8 @@ class _FallenLetter extends StatelessWidget {
   final String letter;
   final double fontSize;
   final Animation<double> opacityAnim;
-  final Animation<double> rotationAnim; // degrees
-  final Animation<Offset> slideAnim;    // fractional offset used as pixel-ish nudge
+  final Animation<double> rotationAnim;
+  final Animation<Offset> slideAnim;
   final Alignment transformOrigin;
 
   @override
@@ -366,7 +344,7 @@ class _FallenLetter extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────
-//  TV SCENE  (CIN label + TV body + legs)
+//  TV SCENE
 // ─────────────────────────────────────────────
 class _TvScene extends StatelessWidget {
   const _TvScene();
@@ -377,7 +355,6 @@ class _TvScene extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // CIN label
         Padding(
           padding: const EdgeInsets.only(left: 48, bottom: 0),
           child: Text(
@@ -392,7 +369,7 @@ class _TvScene extends StatelessWidget {
           ),
         ),
 
-        // TV body
+        // TV body — FIX: use IntrinsicHeight to give Row a bounded height
         Container(
           width: 340,
           decoration: BoxDecoration(
@@ -413,119 +390,111 @@ class _TvScene extends StatelessWidget {
             ],
           ),
           padding: const EdgeInsets.all(16).copyWith(right: 14),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Screen column
-              Expanded(
-                child: Column(
-                  children: [
-                    // Screen
-                    AspectRatio(
-                      aspectRatio: 4 / 3,
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF04040A),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: const Color(0xFF14141E), width: 3),
-                          ),
-                          child: Stack(
-                            fit: StackFit.expand,
-                            children: [
-                              // Noise
-                              const _NoiseCanvas(),
-                              // Glitch lines
-                              const _GlitchLines(),
-                              // Badge
-                              Positioned(
-                                top: 8, left: 8,
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: Colors.black.withOpacity(0.5),
-                                    borderRadius: BorderRadius.circular(3),
-                                  ),
-                                  child: Text(
-                                    'BACK\nFLADLY\nSECRETES',
-                                    style: GoogleFonts.spaceMono(
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 7.5,
-                                      color: Colors.white,
-                                      height: 1.6,
-                                      letterSpacing: 0.04,
+          // ✅ FIX: IntrinsicHeight gives the Row a finite height
+          child: IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Screen column
+                Expanded(
+                  child: Column(
+                    children: [
+                      AspectRatio(
+                        aspectRatio: 4 / 3,
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF04040A),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: const Color(0xFF14141E), width: 3),
+                            ),
+                            child: Stack(
+                              fit: StackFit.expand,
+                              children: [
+                                const _NoiseCanvas(),
+                                const _GlitchLines(),
+                                Positioned(
+                                  top: 8, left: 8,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: Colors.black.withOpacity(0.5),
+                                      borderRadius: BorderRadius.circular(3),
+                                    ),
+                                    child: Text(
+                                      'BACK\nFLADLY\nSECRETES',
+                                      style: GoogleFonts.spaceMono(
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 7.5,
+                                        color: Colors.white,
+                                        height: 1.6,
+                                        letterSpacing: 0.04,
+                                      ),
                                     ),
                                   ),
                                 ),
-                              ),
-                              // Scanlines
-                              Positioned.fill(
-                                child: IgnorePointer(
-                                  child: CustomPaint(painter: _ScanlinesPainter()),
+                                Positioned.fill(
+                                  child: IgnorePointer(
+                                    child: CustomPaint(painter: _ScanlinesPainter()),
+                                  ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    // Bottom strip
-                    Container(
-                      height: 8,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF2A2A38),
-                        borderRadius: BorderRadius.circular(4),
-                        border: Border.all(color: const Color(0xFF3A3A4C)),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(width: 12),
-
-              // Right control column
-              SizedBox(
-                width: 44,
-                child: Column(
-                  children: [
-                    // Main dial
-                    const _Dial(size: 32),
-                    const SizedBox(height: 6),
-                    // Speaker dots
-                    SizedBox(
-                      width: 28,
-                      child: Wrap(
-                        spacing: 4, runSpacing: 4,
-                        children: List.generate(15, (_) => const _SpeakerDot()),
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    // Channel buttons
-                    ...List.generate(3, (_) => Padding(
-                      padding: const EdgeInsets.only(bottom: 3),
-                      child: Container(
-                        width: 28, height: 5,
+                      const SizedBox(height: 8),
+                      Container(
+                        height: 8,
                         decoration: BoxDecoration(
-                          color: const Color(0xFF252530),
-                          borderRadius: BorderRadius.circular(3),
-                          border: Border.all(color: const Color(0xFF35354A)),
+                          color: const Color(0xFF2A2A38),
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(color: const Color(0xFF3A3A4C)),
                         ),
                       ),
-                    )),
-                    const Spacer(),
-                    // Small dial
-                    const _Dial(size: 22),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-            ],
+
+                const SizedBox(width: 12),
+
+                // Right control column
+                SizedBox(
+                  width: 44,
+                  child: Column(
+                    children: [
+                      const _Dial(size: 32),
+                      const SizedBox(height: 6),
+                      SizedBox(
+                        width: 28,
+                        child: Wrap(
+                          spacing: 4, runSpacing: 4,
+                          children: List.generate(15, (_) => const _SpeakerDot()),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      ...List.generate(3, (_) => Padding(
+                        padding: const EdgeInsets.only(bottom: 3),
+                        child: Container(
+                          width: 28, height: 5,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF252530),
+                            borderRadius: BorderRadius.circular(3),
+                            border: Border.all(color: const Color(0xFF35354A)),
+                          ),
+                        ),
+                      )),
+                      const Spacer(),
+                      const _Dial(size: 22),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
 
-        // TV Legs SVG via CustomPaint
         SizedBox(
           width: 340,
           height: 80,
@@ -592,7 +561,7 @@ class _SpeakerDot extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────
-//  NOISE CANVAS  (web-safe: CustomPainter + AnimationController)
+//  NOISE CANVAS
 // ─────────────────────────────────────────────
 class _NoiseCanvas extends StatefulWidget {
   const _NoiseCanvas();
@@ -660,7 +629,6 @@ class _NoiseDirectPainter extends CustomPainter {
   bool shouldRepaint(_NoiseDirectPainter _) => true;
 }
 
-
 // ─────────────────────────────────────────────
 //  GLITCH LINES
 // ─────────────────────────────────────────────
@@ -724,7 +692,6 @@ class _GlitchPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     for (final l in lines) {
-      // offset phase by delay
       final phase = (t + l.delayMs / 2500) % 1.0;
       double dx = 0;
       double op = 0.88;
@@ -738,12 +705,7 @@ class _GlitchPainter extends CustomPainter {
         ..style = PaintingStyle.fill;
 
       canvas.drawRect(
-        Rect.fromLTWH(
-          dx,
-          size.height * l.top,
-          size.width * l.width,
-          l.height.toDouble(),
-        ),
+        Rect.fromLTWH(dx, size.height * l.top, size.width * l.width, l.height.toDouble()),
         paint,
       );
     }
@@ -815,12 +777,10 @@ class _LegsPainter extends CustomPainter {
       canvas.restore();
     }
 
-    // Inner legs
     drawLeg(x: 88, y: 0, w: 6, h: 44, angleDeg: -5,
         color: const Color(0xFF252532), footX: 0, footY: 40, footW: 10, footH: 6);
     drawLeg(x: 253, y: 0, w: 6, h: 44, angleDeg: 5,
         color: const Color(0xFF252532), footX: 0, footY: 40, footW: 10, footH: 6);
-    // Outer legs
     drawLeg(x: 75, y: 0, w: 7, h: 58, angleDeg: -9,
         color: const Color(0xFF31313F), footX: 0, footY: 52, footW: 12, footH: 7);
     drawLeg(x: 262, y: 0, w: 7, h: 58, angleDeg: 9,

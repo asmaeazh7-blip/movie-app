@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../services/tmbd_service.dart';
 import 'Youtube_screen.dart';
+import 'watch_screen.dart';
 
 // ─────────────────────────────────────────────
 //  COLORS
@@ -107,6 +108,20 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen>
     } catch (_) {
       if (mounted) setState(() => _loadingEpisodes = false);
     }
+  }
+
+  void _watchEpisode(TmdbEpisode episode) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => WatchScreen(
+          seriesName: widget.name,
+          episodeName: episode.name,
+          episodeNumber: episode.episodeNumber,
+          seasonNumber: _selectedSeasonIndex + 1,
+        ),
+      ),
+    );
   }
 
   @override
@@ -742,6 +757,7 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen>
                     ),
                     itemBuilder: (_, i) => _EpisodeTile(
                       episode: _episodes![i],
+                      onWatch: () => _watchEpisode(_episodes![i]),
                     ),
                   ),
       ],
@@ -801,8 +817,9 @@ class _StatChip extends StatelessWidget {
 //  EPISODE TILE
 // ─────────────────────────────────────────────
 class _EpisodeTile extends StatelessWidget {
-  const _EpisodeTile({required this.episode});
+  const _EpisodeTile({required this.episode, required this.onWatch});
   final TmdbEpisode episode;
+  final VoidCallback onWatch;
 
   @override
   Widget build(BuildContext context) {
@@ -908,6 +925,32 @@ class _EpisodeTile extends StatelessWidget {
                   style: GoogleFonts.lato(color: SC.sub, fontSize: 11, height: 1.4),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 8),
+                GestureDetector(
+                  onTap: onWatch,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(colors: [SC.accent, SC.wine]),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 14),
+                        const SizedBox(width: 4),
+                        Text(
+                          'شاهد الحلقة',
+                          style: GoogleFonts.lato(
+                            color: Colors.white,
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ],
             ),
