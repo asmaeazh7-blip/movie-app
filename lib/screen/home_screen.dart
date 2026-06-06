@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../services/tmbd_service.dart';
 import 'movie_detail_screen.dart';
+import 'series_screen.dart';
 
 // ─────────────────────────────────────────────
 //  COLORS
@@ -159,6 +160,18 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
 
   @override
   Widget build(BuildContext context) {
+    // If series tab is selected, show SeriesScreen
+    if (_navIndex == 2) {
+      return Scaffold(
+        backgroundColor: C.bg,
+        body: const SeriesScreen(),
+        bottomNavigationBar: _BottomNav(
+          currentIndex: _navIndex,
+          onTap: (i) => setState(() => _navIndex = i),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: C.bg,
       body: SafeArea(
@@ -1246,10 +1259,10 @@ class _BottomNav extends StatelessWidget {
   final ValueChanged<int> onTap;
 
   static const _items = [
-    (icon: Icons.home_rounded,     label: 'Home'),
-    (icon: Icons.search_rounded,   label: 'Search'),
-    (icon: Icons.favorite_rounded, label: 'Favorites'),
-    (icon: Icons.person_rounded,   label: 'Profile'),
+    (icon: Icons.home_rounded,       label: 'Home'),
+    (icon: Icons.search_rounded,     label: 'Search'),
+    (icon: Icons.tv_rounded,         label: 'Series'),
+    (icon: Icons.person_rounded,     label: 'Profile'),
   ];
 
   @override
